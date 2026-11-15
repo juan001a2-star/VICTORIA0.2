@@ -1,0 +1,17 @@
+CATALOGO DE LOTERIAS ACTUALIZADO - VICTORIA V50
+
+- 27 loterias activas con los nombres de la lista acordada.
+- Apertura: 06:00 para todas.
+- Cierre: 30 minutos antes de drawTime.
+- Horarios repetidos de lunes a domingo en la configuracion schedule.
+- La sincronizacion de base de datos actualiza las loterias coincidentes, agrega las nuevas y desactiva las antiguas.
+- Las filas antiguas no se eliminan para preservar referencias de tickets y resultados historicos.
+- La inicializacion local del navegador migra el catalogo y conserva las filas anteriores como inactivas.
+
+Los horarios se basan en la tabla acordada en la conversacion; los cierres de terceros no se han verificado individualmente con cada operador.
+
+ZONAS HORARIAS AUTOMATICAS
+- Florida, New Jersey, Georgia y New York: America/New_York (EST/EDT automatico por fecha).
+- Todas las demas loterias: America/Cayenne (UTC-3, sin cambio estacional).
+- La comprobacion de apertura/cierre en pantalla de venta, consulta de tickets y servidor usa la zona horaria propia de cada loteria.
+- El servidor vuelve a validar el horario antes de aceptar un ticket; no depende solamente del reloj del telefono.
