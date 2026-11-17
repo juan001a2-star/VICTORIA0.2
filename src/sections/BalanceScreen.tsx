@@ -7,6 +7,10 @@ import { t } from "@/i18n";
 
 interface BalanceScreenProps {
   user: SessionUser;
+  /** Si se pasa, muestra el balance de este usuario (para admin/supervisor). */
+  viewUser?: SessionUser | { id: number; name?: string; bankNumber?: string; credit?: string; commission?: string; language?: string };
+  /** Callback opcional para cerrar cuando se usa en modo monitor. */
+  onClose?: () => void;
 }
 
 function todayStr(): string {
@@ -27,23 +31,26 @@ function drawDateOf(value: any): string {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export default function BalanceScreen({ user }: BalanceScreenProps) {
-  const lang = user.language || "es";
+export default function BalanceScreen({ user, viewUser, onClose }: BalanceScreenProps) {
+  const target = viewUser || user;
+  const targetId = target.id;
+  const lang = (viewUser as any)?.language || user.language || "es";
   const today = todayStr();
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const isToday = fromDate === today && toDate === today;
+  const isMonitoring = !!viewUser && viewUser.id !== user.id;
 
-  const userQuery = trpc.lotteryUser.byId.useQuery({ id: user.id }, { refetchInterval: 10000 });
-  const ticketQuery = trpc.ticket.list.useQuery({ userId: user.id });
-  const creditHistoryQuery = trpc.lotteryUser.creditHistory.useQuery({ userId: user.id });
+  const userQuery = trpc.lotteryUser.byId.useQuery({ id: targetId }, { refetchInterval: 10000 });
+  const ticketQuery = trpc.ticket.list.useQuery({ userId: targetId });
+  const creditHistoryQuery = trpc.lotteryUser.creditHistory.useQuery({ userId: targetId });
   const winnerListQuery = trpc.winner.list.useQuery();
 
   const allTickets = ticketQuery.data || [];
   const allHistory = creditHistoryQuery.data || [];
   const winnerResults = winnerListQuery.data || [];
-  const currentCredit = Number(userQuery.data?.credit ?? user.credit);
-  const commissionPct = Number(userQuery.data?.commission ?? 0);
+  const currentCredit = Number(userQuery.data?.credit ?? target.credit ?? 0);
+  const commissionPct = Number(userQuery.data?.commission ?? (target as any).commission ?? 0);
 
   const ticketsInRange = allTickets.filter((t: any) => inDateRange(t.createdAt, fromDate, toDate));
   const historyInRange = allHistory.filter((h: any) => inDateRange(h.createdAt, fromDate, toDate));
@@ -113,15 +120,40 @@ export default function BalanceScreen({ user }: BalanceScreenProps) {
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar px-4 py-4 space-y-4">
-      <h2 className="text-xl font-bold text-gray-900">{t(lang, "balance_title")}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-xl font-bold text-gray-900">{t(lang, "balance_title")}</h2>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200"
+          >
+            Cerrar
+          </button>
+        )}
+      </div>
+
+      {isMonitoring && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs text-blue-800">
+          <span className="font-bold">Monitoreando:</span>{" "}
+          {(target as any).name || "Usuario"}{" "}
+          {(target as any).bankNumber ? `(${(target as any).bankNumber})` : ""}
+        </div>
+      )}
 
       {/* Credit Card */}
       <div className="bg-gradient-to-br from-[var(--bv-primary)] to-[var(--bv-primary-dark)] rounded-2xl p-5 text-white shadow-lg">
         <p className="text-green-100 text-sm">{t(lang, "balance_credit_available")}</p>
         <p className="text-3xl font-extrabold mt-1">${formatMoney(currentCredit)}</p>
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/20">
-          <div><p className="text-[10px] text-green-200">{t(lang, "balance_bank")}</p><p className="text-sm font-bold">{user.bankNumber}</p></div>
-          <div><p className="text-[10px] text-green-200">{t(lang, "balance_user")}</p><p className="text-sm font-bold">{user.name}</p></div>
+          <div>
+            <p className="text-[10px] text-green-200">{t(lang, "balance_bank")}</p>
+            <p className="text-sm font-bold">{(target as any).bankNumber || user.bankNumber}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-green-200">{t(lang, "balance_user")}</p>
+            <p className="text-sm font-bold">{(target as any).name || user.name}</p>
+          </div>
         </div>
       </div>
 

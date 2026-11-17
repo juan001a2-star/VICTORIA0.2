@@ -4,10 +4,11 @@ import { formatMoney, logAudit, calculateNetDeduction } from "@/store";
 import { trpc } from "@/providers/trpc";
 import { t } from "@/i18n";
 import { pushAppNotification } from "@/sections/SettingsScreen";
+import BalanceScreen from "@/sections/BalanceScreen";
 import {
   Ticket, Users, Plus, ArrowLeft, Trash2,
   Settings, Trophy, Ban, BarChart3, ChevronRight, X, DollarSign, Wallet, Percent,
-  ChevronLeft, UserPlus, Pencil, Shield, Lock, Check, Smartphone, Hash, Download
+  ChevronLeft, UserPlus, Pencil, Shield, Lock, Check, Smartphone
 } from "lucide-react";
 
 type AdminSection = "menu" | "loterias" | "grupos" | "usuarios" | "premios" | "ganadores" | "anular" | "reportes" | "limites" | "config" | "dispositivos";
@@ -479,6 +480,7 @@ function UsuariosSection({ user }: { user: SessionUser }) {
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 3000); };
   const [search, setSearch] = useState("");
   const [viewUser, setViewUser] = useState<any>(null);
+  const [monitorBalanceUser, setMonitorBalanceUser] = useState<any>(null);
   const [editUser, setEditUser] = useState<any>(null);
   const [editData, setEditData] = useState({ name: "", username: "", password: "", phone: "", role: "user", groupId: "", credit: "5000", commission: "10", active: true });
   const [creditModal, setCreditModal] = useState<any>(null);
@@ -596,6 +598,14 @@ function UsuariosSection({ user }: { user: SessionUser }) {
             </div>
             <div className="flex gap-1.5 mt-2 flex-wrap">
               <button onClick={() => setViewUser(u)} className="flex-1 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-[11px] font-bold hover:bg-blue-100">{t(lang, "us_view_info")}</button>
+              {u.role === "user" && (
+                <button
+                  onClick={() => setMonitorBalanceUser(u)}
+                  className="flex-1 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-[11px] font-bold hover:bg-emerald-100"
+                >
+                  Balance / Ventas
+                </button>
+              )}
               <button onClick={() => openEdit(u)} className="flex-1 py-1.5 bg-[var(--bv-primary-light)] text-[var(--bv-primary-dark)] rounded-lg text-[11px] font-bold hover:bg-[var(--bv-primary-soft)]">{t(lang, "us_edit")}</button>
               <button onClick={() => { setCreditModal(u); setCreditAmount(""); setCreditAction("add"); }} className="flex-1 py-1.5 bg-yellow-50 text-yellow-700 rounded-lg text-[11px] font-bold hover:bg-yellow-100">{t(lang, "us_credit")}</button>
               <button
@@ -616,6 +626,23 @@ function UsuariosSection({ user }: { user: SessionUser }) {
           </div>
         )) : <p className="text-sm text-gray-400 text-center py-4">{t(lang, "us_no_users_found")}</p>}
       </div>
+
+      {monitorBalanceUser && (
+        <div className="absolute inset-0 z-50 bg-white flex flex-col">
+          <BalanceScreen
+            user={user}
+            viewUser={{
+              id: monitorBalanceUser.id,
+              name: monitorBalanceUser.name,
+              bankNumber: monitorBalanceUser.bankNumber,
+              credit: String(monitorBalanceUser.credit ?? "0"),
+              commission: String(monitorBalanceUser.commission ?? "0"),
+              language: user.language,
+            }}
+            onClose={() => setMonitorBalanceUser(null)}
+          />
+        </div>
+      )}
 
       {viewUser && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -974,16 +1001,6 @@ function ReportesGrupoSection({ user }: { user: any }) {
   const userList = trpc.lotteryUser.list.useQuery();
   const ticketList = trpc.ticket.list.useQuery();
   const creditSummaryQuery = trpc.lotteryUser.creditSummary.useQuery();
-  const lotteryList = trpc.lottery.list.useQuery();
-
-  const today = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  })();
-  const [fromDate, setFromDate] = useState(today);
-  const [toDate, setToDate] = useState(today);
-  const [filterLotteryId, setFilterLotteryId] = useState("");
-  const [filterPlayType, setFilterPlayType] = useState("");
   const [msg, setMsg] = useState("");
   const showMsg = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 3000); };
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -991,19 +1008,6 @@ function ReportesGrupoSection({ user }: { user: any }) {
   const [creditAmount, setCreditAmount] = useState("");
   const [creditType, setCreditType] = useState<"deposit" | "payout" | "correction">("deposit");
   const [creditNote, setCreditNote] = useState("");
-
-  const freqQuery = trpc.report.numberFrequency.useQuery({
-    from: fromDate,
-    to: toDate,
-    lotteryId: filterLotteryId ? Number(filterLotteryId) : undefined,
-    playType: filterPlayType || undefined,
-    limit: 150,
-  }, { refetchInterval: 30000 });
-
-  const breakdownQuery = trpc.report.salesBreakdown.useQuery({
-    from: fromDate,
-    to: toDate,
-  }, { refetchInterval: 30000 });
 
   const adjustCredit = trpc.lotteryUser.adjustCredit.useMutation({
     onSuccess: (_d, vars) => {
@@ -1017,16 +1021,6 @@ function ReportesGrupoSection({ user }: { user: any }) {
 
   const users = (userList.data || []).filter((u: any) => u.role === "user");
   const tickets = ticketList.data || [];
-  const lotteries = (lotteryList.data || []).filter((l: any) => l.active !== false);
-  const freqRows = freqQuery.data?.rows || [];
-  const freqTotalPlays = freqQuery.data?.totalPlays || 0;
-  const freqTotalAmount = freqQuery.data?.totalAmount || "0.00";
-  const sellers = breakdownQuery.data?.sellers || [];
-  const sellerTotals = breakdownQuery.data?.totals;
-
-  const PLAY_TYPE_LABELS: Record<string, string> = {
-    directo: "Directo", pale: "Pale", tripleta: "Tripleta", terna: "Terna", cuatrena: "Cuatrena",
-  };
 
   const statsFor = (userId: number) => {
     const userTickets = tickets.filter((tk: any) => tk.userId === userId);
@@ -1048,62 +1042,11 @@ function ReportesGrupoSection({ user }: { user: any }) {
     adjustCredit.mutate({ id: creditModal.id, direction: creditModal.direction, amount: creditAmount, type: creditType, note: creditNote || undefined });
   };
 
-  const exportFrequencyCSV = () => {
-    if (!freqRows.length) { showMsg("No hay datos para exportar"); return; }
-    const header = "Numero,Tipo,Loteria,Veces,Monto,Tickets\n";
-    const lines = freqRows.map((r: any) =>
-      `"${r.number}","${PLAY_TYPE_LABELS[r.type] || r.type}","${r.lotteryName}",${r.count},${r.totalAmount},${r.ticketCount}`
-    ).join("\n");
-    const blob = new Blob(["\uFEFF" + header + lines], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `exposicion-numeros_${fromDate}_${toDate}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showMsg("CSV descargado");
-  };
-
-  const exportSellersCSV = () => {
-    if (!sellers.length) { showMsg("No hay datos para exportar"); return; }
-    const header = "Vendedor,Banca,Tickets,Ventas,Neto\n";
-    const lines = sellers.map((s: any) =>
-      `"${s.name}","${s.bankNumber}",${s.tickets},${s.sales},${s.net}`
-    ).join("\n");
-    const blob = new Blob(["\uFEFF" + header + lines], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ventas-vendedores_${fromDate}_${toDate}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showMsg("CSV descargado");
-  };
-
   return (
     <div className="px-4 py-4 space-y-3">
       {msg && <div className="bg-[var(--bv-primary)] text-white px-3 py-2 rounded-lg text-sm text-center">{msg}</div>}
       <p className="text-sm text-gray-600">{user.role === "admin" ? t(lang, "rg_desc_admin") : t(lang, "rg_desc_supervisor")}</p>
 
-      {/* Filtros de fecha */}
-      <div className="bg-white rounded-xl border border-green-100 p-3 shadow-sm">
-        <div className="flex gap-2 mb-2">
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="flex-1 px-2 py-1.5 border border-[var(--bv-primary-soft)] rounded-lg text-xs" />
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="flex-1 px-2 py-1.5 border border-[var(--bv-primary-soft)] rounded-lg text-xs" />
-        </div>
-        <div className="flex gap-2">
-          <select value={filterLotteryId} onChange={(e) => setFilterLotteryId(e.target.value)} className="flex-1 px-2 py-1.5 border border-[var(--bv-primary-soft)] rounded-lg text-xs">
-            <option value="">Todas las loterías</option>
-            {lotteries.map((l: any) => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
-          <select value={filterPlayType} onChange={(e) => setFilterPlayType(e.target.value)} className="flex-1 px-2 py-1.5 border border-[var(--bv-primary-soft)] rounded-lg text-xs">
-            <option value="">Todos los tipos</option>
-            {Object.entries(PLAY_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {/* Resumen P&L existente */}
       {creditSummaryQuery.data && (
         <div>
           <h3 className="text-sm font-bold text-gray-900 mb-2">{t(lang, "rg_pl_title")}</h3>
@@ -1119,110 +1062,31 @@ function ReportesGrupoSection({ user }: { user: any }) {
               <p className="text-[8px] text-red-500">{t(lang, "rg_losses_desc")}</p>
             </div>
             <div className={`rounded-xl border p-2.5 text-center ${creditSummaryQuery.data.neto >= 0 ? "bg-blue-50 border-blue-100" : "bg-orange-50 border-orange-100"}`}>
-              <p className={`text-[9px] font-medium ${creditSummaryQuery.data.neto >= 0 ? "text-blue-600" : "text-orange-600"}`}>{t(lang, "rg_net")}</p>
+              <p className={`text-[9px] font-medium ${creditSummaryQuery.data.neto >= 0 ? "text-blue-700" : "text-orange-700"}`}>{t(lang, "rg_net")}</p>
               <p className={`text-sm font-bold ${creditSummaryQuery.data.neto >= 0 ? "text-blue-700" : "text-orange-700"}`}>${formatMoney(creditSummaryQuery.data.neto)}</p>
-              <p className={`text-[8px] ${creditSummaryQuery.data.neto >= 0 ? "text-blue-500" : "text-orange-500"}`}>{t(lang, "rg_net_desc")}</p>
+              <p className={`text-[8px] ${creditSummaryQuery.data.neto >= 0 ? "text-blue-600" : "text-orange-600"}`}>{creditSummaryQuery.data.neto >= 0 ? t(lang, "rg_net_gain") : t(lang, "rg_net_loss")}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* QUIÉN VENDIÓ */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <Users size={16} className="text-[var(--bv-primary)]" />
-            <span className="text-sm font-bold text-gray-800">Quién vendió</span>
-            {sellerTotals && (
-              <span className="text-[10px] text-gray-500">({sellerTotals.tickets} tickets · ${formatMoney(Number(sellerTotals.sales))})</span>
-            )}
-          </div>
-          <button onClick={exportSellersCSV} className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-bold">
-            <Download size={12} /> CSV
-          </button>
-        </div>
-        <div className="p-2 space-y-1.5 max-h-48 overflow-y-auto">
-          {breakdownQuery.isLoading && <p className="text-xs text-gray-400 text-center py-3">Cargando…</p>}
-          {!breakdownQuery.isLoading && sellers.length === 0 && <p className="text-xs text-gray-400 text-center py-3">Sin actividad</p>}
-          {sellers.map((s: any) => (
-            <div key={s.userId} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-              <div>
-                <p className="text-sm font-bold text-gray-900">{s.name}</p>
-                <p className="text-[10px] text-gray-400">#{s.bankNumber} · {s.tickets} ticket{s.tickets !== 1 ? "s" : ""}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-blue-700">${formatMoney(Number(s.sales))}</p>
-                <p className="text-[10px] text-gray-500">neto ${formatMoney(Number(s.net))}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {users.length === 0 && <p className="text-sm text-center text-gray-400 py-6">{t(lang, "rg_no_sellers")}</p>}
 
-      {/* EXPOSICIÓN DE NÚMEROS */}
-      <div className="bg-white rounded-xl border border-amber-100 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-3 py-2.5 bg-amber-50 border-b border-amber-100">
-          <div className="flex items-center gap-2">
-            <Hash size={16} className="text-amber-600" />
-            <span className="text-sm font-bold text-gray-800">Exposición de números</span>
-            <span className="text-[10px] text-gray-500">({freqTotalPlays} jugadas · ${formatMoney(Number(freqTotalAmount))})</span>
-          </div>
-          <button onClick={exportFrequencyCSV} className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 rounded text-[10px] font-bold">
-            <Download size={12} /> CSV
-          </button>
-        </div>
-        <div className="p-2">
-          <p className="text-[10px] text-gray-500 px-1 mb-2">Cuántas veces se vendió cada número/combinación y el monto total. Ordenado por mayor exposición.</p>
-          {freqQuery.isLoading && <p className="text-xs text-gray-400 text-center py-4">Cargando frecuencia…</p>}
-          {!freqQuery.isLoading && freqRows.length === 0 && <p className="text-xs text-gray-400 text-center py-4">Sin jugadas en el período</p>}
-          {freqRows.length > 0 && (
-            <div className="overflow-x-auto max-h-64 overflow-y-auto">
-              <table className="w-full text-left">
-                <thead className="sticky top-0 bg-white">
-                  <tr className="text-[10px] text-gray-500 border-b border-gray-100">
-                    <th className="px-2 py-1.5 font-bold">Número</th>
-                    <th className="px-2 py-1.5 font-bold">Tipo</th>
-                    <th className="px-2 py-1.5 font-bold">Lotería</th>
-                    <th className="px-2 py-1.5 font-bold text-right">Veces</th>
-                    <th className="px-2 py-1.5 font-bold text-right">Monto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {freqRows.map((r: any, idx: number) => (
-                    <tr key={`${r.lotteryId}-${r.type}-${r.number}-${idx}`} className={`text-xs border-b border-gray-50 ${idx < 5 ? "bg-amber-50/50" : ""}`}>
-                      <td className="px-2 py-1.5 font-mono font-bold text-gray-900">{r.number}</td>
-                      <td className="px-2 py-1.5"><span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">{PLAY_TYPE_LABELS[r.type] || r.type}</span></td>
-                      <td className="px-2 py-1.5 text-gray-600 truncate max-w-[90px]">{r.lotteryName}</td>
-                      <td className="px-2 py-1.5 text-right font-bold text-amber-700">{r.count}</td>
-                      <td className="px-2 py-1.5 text-right font-bold text-blue-700">${formatMoney(Number(r.totalAmount))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Lista de usuarios con crédito (existente) */}
-      <h3 className="text-sm font-bold text-gray-900 mt-2">{t(lang, "rg_users_title") || "Vendedores y crédito"}</h3>
       {users.map((u: any) => {
         const stats = statsFor(u.id);
         return (
-          <div key={u.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3">
-            <div className="flex items-center justify-between mb-1">
-              <div>
-                <p className="text-sm font-bold text-gray-900">{u.name}</p>
-                <p className="text-[10px] text-gray-400">#{u.bankNumber} · Crédito: ${formatMoney(u.credit)}</p>
+          <div key={u.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <button onClick={() => setExpandedId(expandedId === u.id ? null : u.id)} className="w-full flex items-center justify-between p-3 text-left">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-gray-900">{u.name} <span className="text-[10px] font-normal text-gray-400">({u.bankNumber})</span></p>
+                <p className="text-[11px] text-gray-500">{stats.activeCount} {t(lang, "rg_active_tickets")}{stats.cancelledCount > 0 ? ` - ${stats.cancelledCount} ${t(lang, "rg_cancelled")}` : ""} - {t(lang, "rg_sales")}: ${formatMoney(stats.totalVentas)}</p>
               </div>
-              <button onClick={() => setExpandedId(expandedId === u.id ? null : u.id)} className="text-[10px] text-[var(--bv-primary)] font-bold">
-                {expandedId === u.id ? "Ocultar" : "Historial"}
-              </button>
-            </div>
-            <p className="text-[11px] text-gray-500 mb-2">
-              {stats.activeCount} {t(lang, "rg_active_tickets")}{stats.cancelledCount > 0 ? ` - ${stats.cancelledCount} ${t(lang, "rg_cancelled")}` : ""} - {t(lang, "rg_sales")}: ${formatMoney(stats.totalVentas)}
-            </p>
-            <div className="flex gap-2">
+              <div className="text-right shrink-0 ml-2">
+                <p className="text-sm font-bold text-[var(--bv-primary-dark)]">${formatMoney(u.credit)}</p>
+                <p className="text-[10px] text-gray-400">{t(lang, "rg_balance")}</p>
+              </div>
+            </button>
+            <div className="flex gap-2 px-3 pb-3">
               <button onClick={() => openCreditModal(u, "add")} className="flex-1 py-2 bg-[var(--bv-primary-light)] text-[var(--bv-primary-dark)] rounded-lg text-xs font-bold hover:bg-[var(--bv-primary-soft)]">{t(lang, "rg_add_credit")}</button>
               <button onClick={() => openCreditModal(u, "subtract")} className="flex-1 py-2 bg-red-50 text-red-700 rounded-lg text-xs font-bold hover:bg-red-100">{t(lang, "rg_subtract_credit")}</button>
             </div>
@@ -1261,10 +1125,10 @@ function ReportesGrupoSection({ user }: { user: any }) {
               </div>
               <div>
                 <label className="text-[10px] font-medium text-gray-600 mb-1 block">{t(lang, "rg_note_optional")}</label>
-                <input type="text" value={creditNote} onChange={(e) => setCreditNote(e.target.value)} className="w-full px-3 py-2.5 border border-[var(--bv-primary-soft)] rounded-lg text-sm" />
+                <input value={creditNote} onChange={(e) => setCreditNote(e.target.value)} placeholder={t(lang, "rg_note_placeholder")} className="w-full px-3 py-2.5 border border-[var(--bv-primary-soft)] rounded-lg text-sm" />
               </div>
             </div>
-            <div className="flex gap-2 mt-4">
+            <div className="flex gap-2 mt-5">
               <button onClick={() => setCreditModal(null)} className="flex-1 py-3 rounded-xl bg-gray-100 text-gray-700 font-bold text-sm">{t(lang, "rg_cancel")}</button>
               <button onClick={confirmCredit} disabled={adjustCredit.isPending} className={`flex-1 py-3 rounded-xl text-white font-bold text-sm ${creditModal.direction === "add" ? "bg-[var(--bv-primary)] hover:bg-[var(--bv-primary-dark)]" : "bg-red-600 hover:bg-red-700"}`}>
                 {t(lang, "rg_confirm")}

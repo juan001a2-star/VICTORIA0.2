@@ -42,14 +42,31 @@ function getTimeElapsed(createdAt: string): { elapsedMs: number; canAnnul: boole
   return { elapsedMs, canAnnul, timeLeft };
 }
 
+function todayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function inDateRange(value: any, from: string, to: string): boolean {
+  const t = new Date(value).getTime();
+  if (Number.isNaN(t)) return false;
+  const fromMs = new Date(from + "T00:00:00").getTime();
+  const toMs = new Date(to + "T00:00:00").getTime() + 24 * 60 * 60 * 1000;
+  return t >= fromMs && t < toMs;
+}
+
 export default function TicketsScreen({ user, onGoVender }: TicketsScreenProps) {
   const lang = user.language || "es";
+  const today = todayStr();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const ticketsOpenPref = (() => {
     try { return localStorage.getItem("bv_tickets_filter") || "open"; } catch { return "open"; }
   })();
   const [filterUser, setFilterUser] = useState("");
+  // Por defecto solo tickets del día actual
+  const [fromDate, setFromDate] = useState(today);
+  const [toDate, setToDate] = useState(today);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [actionMenuTicket, setActionMenuTicket] = useState<any>(null);
   const [msg, setMsg] = useState("");
@@ -63,6 +80,7 @@ export default function TicketsScreen({ user, onGoVender }: TicketsScreenProps) 
   const [validationResult, setValidationResult] = useState<any>(null);
 
   const isAdmin = user.role === "admin" || user.role === "supervisor";
+  const isTodayRange = fromDate === today && toDate === today;
 
   // tRPC hooks
   const utils = trpc.useUtils();
@@ -99,7 +117,8 @@ export default function TicketsScreen({ user, onGoVender }: TicketsScreenProps) 
     const matchCode = t.code.toLowerCase().includes(search.toLowerCase());
     const matchStatus = !filterStatus || t.status === filterStatus;
     const matchUser = !filterUser || t.userId === Number(filterUser);
-    return matchCode && matchStatus && matchUser;
+    const matchDate = inDateRange(t.createdAt, fromDate, toDate);
+    return matchCode && matchStatus && matchUser && matchDate;
   });
 
   const lotteries = trpcLotteries.data || [];
@@ -626,6 +645,41 @@ export default function TicketsScreen({ user, onGoVender }: TicketsScreenProps) 
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-[var(--bv-primary-soft)] rounded-xl focus:outline-none focus:border-[var(--bv-primary)] bg-white text-sm" placeholder={t(lang, "tickets_search_placeholder")} />
           {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2"><X size={16} className="text-gray-400" /></button>}
+        </div>
+
+        {/* Filtro por rango de fechas — por defecto solo hoy */}
+        <div className="bg-white rounded-xl border border-gray-100 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-gray-600">
+              {isTodayRange ? "Mostrando: Hoy" : `Del ${fromDate} al ${toDate}`}
+            </p>
+            {!isTodayRange && (
+              <button
+                type="button"
+                onClick={() => { setFromDate(today); setToDate(today); }}
+                className="text-[11px] font-bold text-[var(--bv-primary)] hover:underline"
+              >
+                Solo hoy
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={fromDate}
+              max={toDate}
+              onChange={(e) => setFromDate(e.target.value || today)}
+              className="flex-1 px-3 py-2 border border-[var(--bv-primary-soft)] rounded-lg text-sm bg-gray-50"
+            />
+            <input
+              type="date"
+              value={toDate}
+              min={fromDate}
+              max={today}
+              onChange={(e) => setToDate(e.target.value || today)}
+              className="flex-1 px-3 py-2 border border-[var(--bv-primary-soft)] rounded-lg text-sm bg-gray-50"
+            />
+          </div>
         </div>
 
         <div className="flex gap-2">

@@ -8,6 +8,7 @@ import { reportRouter } from "./report-router";
 import { prizeRouter } from "./prize-router";
 import { syncRouter } from "./sync-router";
 import { configRouter } from "./config-router";
+import { resultsRouter } from "./results-router";
 import { createRouter, publicQuery } from "./middleware";
 
 export const appRouter = createRouter({
@@ -22,6 +23,7 @@ export const appRouter = createRouter({
   prize: prizeRouter,
   sync: syncRouter,
   config: configRouter,
+  results: resultsRouter,
 });
 
 export type AppRouter = typeof appRouter;
