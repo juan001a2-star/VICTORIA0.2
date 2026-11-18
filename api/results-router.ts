@@ -239,4 +239,95 @@ export const resultsRouter = createRouter({
       errors,
     };
   }),
+
+  /**
+   * Loterías que ya cerraron hace ≥ delayMinutes y aún no tienen resultado del día.
+   * Sirve para el job automático / alerta post-cierre (sin importar todavía).
+   */
+  dueAfterClose: managerLotteryQuery
+    .input(
+      z
+        .object({
+          /** Minutos después del cierre para empezar a avisar (default 10) */
+          delayMinutes: z.number().min(0).max(120).optional(),
+          /** Ventana máxima en horas desde el cierre (default 6) */
+          windowHours: z.number().min(1).max(24).optional(),
+          /** Si true, intenta scrape solo de las que están due */
+          scrape: z.boolean().optional(),
+        })
+        .optional()
+    )
+    .query(async ({ input }) => {
+      const { lotteriesDueForResults } = await import("./lib/lottery-schedule");
+      const db = getDb();
+      const delayMinutes = input?.delayMinutes ?? 10;
+      const windowHours = input?.windowHours ?? 6;
+      const allLotteries = await db.select().from(lotteries);
+      const active = allLotteries.filter((l) => l.active !== false);
+
+      const due = lotteriesDueForResults(active, delayMinutes, windowHours);
+
+      const missing: Array<{
+        lotteryId: number;
+        lotteryName: string;
+        minutesSinceClose: number;
+        drawDate: string;
+        alreadyImported: boolean;
+        scraped: null | {
+          firstPrize: string;
+          secondPrize: string;
+          thirdPrize: string;
+          source: string;
+        };
+      }> = [];
+
+      let scrapeErrors: string[] = [];
+      let scrapedMap = new Map<string, ScrapedResult>();
+
+      if (input?.scrape !== false && due.length > 0) {
+        const names = due.map((d) => d.lotteryName);
+        const { results, errors } = await scrapeAllResults({
+          onlySystemNames: names,
+        });
+        scrapeErrors = errors;
+        for (const r of results) scrapedMap.set(r.systemName, r);
+      }
+
+      for (const d of due) {
+        const existing = await db
+          .select()
+          .from(winners)
+          .where(and(eq(winners.lotteryId, d.lotteryId), eq(winners.drawDate, d.drawDate)));
+        const sc = scrapedMap.get(d.lotteryName);
+        missing.push({
+          lotteryId: d.lotteryId,
+          lotteryName: d.lotteryName,
+          minutesSinceClose: d.minutesSinceClose,
+          drawDate: d.drawDate,
+          alreadyImported: existing.length > 0,
+          scraped: sc
+            ? {
+                firstPrize: sc.firstPrize,
+                secondPrize: sc.secondPrize,
+                thirdPrize: sc.thirdPrize,
+                source: sc.source,
+              }
+            : null,
+        });
+      }
+
+      const needAction = missing.filter((m) => !m.alreadyImported);
+
+      return {
+        checkedAt: new Date().toISOString(),
+        delayMinutes,
+        dueCount: due.length,
+        needActionCount: needAction.length,
+        withNumbers: needAction.filter((m) => m.scraped).length,
+        withoutNumbers: needAction.filter((m) => !m.scraped).length,
+        items: missing,
+        needAction,
+        scrapeErrors,
+      };
+    }),
 });

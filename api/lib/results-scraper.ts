@@ -213,6 +213,22 @@ export async function scrapeAllResults(opts?: {
     }
   }
 
+  // Si faltan loterías críticas y está instalado Playwright, intentar JS-render
+  const missingCritical = (opts?.onlySystemNames || Object.keys(LOTTERY_ALIASES)).filter(
+    (n) => !bySystem.has(n) && /leidsa|nacional|loteka|real|gana/i.test(n)
+  );
+  if (missingCritical.length > 0) {
+    try {
+      const pw = await scrapeWithPlaywrightOptional(missingCritical);
+      for (const r of pw.results) {
+        if (!bySystem.has(r.systemName)) bySystem.set(r.systemName, r);
+      }
+      errors.push(...pw.errors);
+    } catch (e: any) {
+      errors.push(`playwright: ${e?.message || String(e)}`);
+    }
+  }
+
   return {
     results: Array.from(bySystem.values()),
     errors,
@@ -221,10 +237,54 @@ export async function scrapeAllResults(opts?: {
 }
 
 /**
+ * Playwright opcional: solo si está instalado `playwright` en node_modules.
+ * No es dependencia obligatoria; si no está, se ignora en silencio.
+ */
+async function scrapeWithPlaywrightOptional(
+  systemNames: string[]
+): Promise<{ results: ScrapedResult[]; errors: string[] }> {
+  const errors: string[] = [];
+  const results: ScrapedResult[] = [];
+  let playwright: any;
+  try {
+    // @ts-ignore optional dependency
+    playwright = await import("playwright");
+  } catch {
+    return { results, errors: ["Playwright no instalado (opcional). Usa: npm i playwright && npx playwright install chromium"] };
+  }
+
+  const browser = await playwright.chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const urls = ["https://loterias.do/", "https://www.leidsa.com/"];
+    for (const url of urls) {
+      try {
+        await page.goto(url, { waitUntil: "networkidle", timeout: 20000 });
+        await page.waitForTimeout(1500);
+        const html = await page.content();
+        const parsed = parseGenericHtml(html, url + "#pw");
+        for (const r of parsed) {
+          if (systemNames.length && !systemNames.includes(r.systemName)) continue;
+          if (!results.some((x) => x.systemName === r.systemName)) {
+            results.push({ ...r, confidence: "high", source: url + " (playwright)" });
+          }
+        }
+      } catch (e: any) {
+        errors.push(`pw ${url}: ${e?.message || String(e)}`);
+      }
+    }
+  } finally {
+    await browser.close().catch(() => {});
+  }
+  return { results, errors };
+}
+
+/**
  * Vista previa manual: el operador puede pegar 3 números por lotería
  * (útil cuando el scraper no encuentra algo).
  */
 export function buildManualPreview(
+
   items: Array<{ systemName: string; first: string; second: string; third: string; date?: string }>
 ): ScrapedResult[] {
   const date = todayISO();

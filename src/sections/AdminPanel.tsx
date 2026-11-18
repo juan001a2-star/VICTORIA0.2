@@ -5,6 +5,7 @@ import { trpc } from "@/providers/trpc";
 import { t } from "@/i18n";
 import { pushAppNotification } from "@/sections/SettingsScreen";
 import BalanceScreen from "@/sections/BalanceScreen";
+import ReportesScreen from "@/sections/ReportesScreen";
 import {
   Ticket, Users, Plus, ArrowLeft, Trash2,
   Settings, Trophy, Ban, BarChart3, ChevronRight, X, DollarSign, Wallet, Percent,
@@ -481,6 +482,7 @@ function UsuariosSection({ user }: { user: SessionUser }) {
   const [search, setSearch] = useState("");
   const [viewUser, setViewUser] = useState<any>(null);
   const [monitorBalanceUser, setMonitorBalanceUser] = useState<any>(null);
+  const [monitorTab, setMonitorTab] = useState<"balance" | "ventas">("balance");
   const [editUser, setEditUser] = useState<any>(null);
   const [editData, setEditData] = useState({ name: "", username: "", password: "", phone: "", role: "user", groupId: "", credit: "5000", commission: "10", active: true });
   const [creditModal, setCreditModal] = useState<any>(null);
@@ -600,7 +602,7 @@ function UsuariosSection({ user }: { user: SessionUser }) {
               <button onClick={() => setViewUser(u)} className="flex-1 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-[11px] font-bold hover:bg-blue-100">{t(lang, "us_view_info")}</button>
               {u.role === "user" && (
                 <button
-                  onClick={() => setMonitorBalanceUser(u)}
+                  onClick={() => { setMonitorTab("balance"); setMonitorBalanceUser(u); }}
                   className="flex-1 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-[11px] font-bold hover:bg-emerald-100"
                 >
                   Balance / Ventas
@@ -629,18 +631,71 @@ function UsuariosSection({ user }: { user: SessionUser }) {
 
       {monitorBalanceUser && (
         <div className="absolute inset-0 z-50 bg-white flex flex-col">
-          <BalanceScreen
-            user={user}
-            viewUser={{
-              id: monitorBalanceUser.id,
-              name: monitorBalanceUser.name,
-              bankNumber: monitorBalanceUser.bankNumber,
-              credit: String(monitorBalanceUser.credit ?? "0"),
-              commission: String(monitorBalanceUser.commission ?? "0"),
-              language: user.language,
-            }}
-            onClose={() => setMonitorBalanceUser(null)}
-          />
+          <div className="shrink-0 border-b border-gray-100 px-3 pt-3 pb-2 bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-bold text-gray-900 truncate">
+                {monitorBalanceUser.name}{" "}
+                <span className="text-[11px] font-normal text-[var(--bv-primary)]">
+                  ({monitorBalanceUser.bankNumber})
+                </span>
+              </p>
+              <button
+                type="button"
+                onClick={() => { setMonitorBalanceUser(null); setMonitorTab("balance"); }}
+                className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMonitorTab("balance")}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold ${
+                  monitorTab === "balance"
+                    ? "bg-[var(--bv-primary)] text-white"
+                    : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                Balance
+              </button>
+              <button
+                type="button"
+                onClick={() => setMonitorTab("ventas")}
+                className={`flex-1 py-2 rounded-lg text-xs font-bold ${
+                  monitorTab === "ventas"
+                    ? "bg-[var(--bv-primary)] text-white"
+                    : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                Ventas
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            {monitorTab === "balance" ? (
+              <BalanceScreen
+                user={user}
+                viewUser={{
+                  id: monitorBalanceUser.id,
+                  name: monitorBalanceUser.name,
+                  bankNumber: monitorBalanceUser.bankNumber,
+                  credit: String(monitorBalanceUser.credit ?? "0"),
+                  commission: String(monitorBalanceUser.commission ?? "0"),
+                  language: user.language,
+                }}
+              />
+            ) : (
+              <ReportesScreen
+                user={user}
+                viewUser={{
+                  id: monitorBalanceUser.id,
+                  name: monitorBalanceUser.name,
+                  bankNumber: monitorBalanceUser.bankNumber,
+                }}
+              />
+            )}
+          </div>
         </div>
       )}
 

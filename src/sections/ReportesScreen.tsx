@@ -7,6 +7,9 @@ import { t } from "@/i18n";
 
 interface ReportesScreenProps {
   user: SessionUser;
+  /** Si se pasa, muestra solo las ventas de ese usuario (modo monitor admin/supervisor). */
+  viewUser?: { id: number; name?: string; bankNumber?: string };
+  onClose?: () => void;
 }
 
 function todayStr(): string {
@@ -25,21 +28,29 @@ function inDateRange(value: any, from: string, to: string): boolean {
   return t >= fromMs && t < toMs;
 }
 
-export default function ReportesScreen({ user }: ReportesScreenProps) {
+export default function ReportesScreen({ user, viewUser, onClose }: ReportesScreenProps) {
   const lang = user.language || "es";
-  const isAdmin = user.role === "admin";
-  const isManager = ["admin", "supervisor", "collector"].includes(user.role);
+  const isMonitoring = !!viewUser;
+  const isAdmin = user.role === "admin" && !isMonitoring;
+  const isManager = ["admin", "supervisor", "collector"].includes(user.role) && !isMonitoring;
   const today = todayStr();
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const isToday = fromDate === today && toDate === today;
   const [filterGroupId, setFilterGroupId] = useState<string>("");
-  const [filterUserId, setFilterUserId] = useState<string>("");
+  const [filterUserId, setFilterUserId] = useState<string>(viewUser ? String(viewUser.id) : "");
 
-  const ticketQuery = trpc.ticket.list.useQuery(isManager ? undefined : { userId: user.id });
-  const userQuery = trpc.lotteryUser.list.useQuery(undefined, { enabled: isManager });
+  // En modo monitor: solo tickets de ese usuario. Si no, manager ve todos (o filtrados).
+  const ticketQuery = trpc.ticket.list.useQuery(
+    isMonitoring ? { userId: viewUser!.id } : isManager ? undefined : { userId: user.id }
+  );
+  const userQuery = trpc.lotteryUser.list.useQuery(undefined, { enabled: isManager && !isMonitoring });
   const groupQuery = trpc.group.list.useQuery(undefined, { enabled: isAdmin });
-  const summaryQuery = trpc.lotteryUser.creditSummary.useQuery({ from: fromDate, to: toDate });
+  const summaryQuery = trpc.lotteryUser.creditSummary.useQuery(
+    isMonitoring
+      ? { userId: viewUser!.id, from: fromDate, to: toDate }
+      : { from: fromDate, to: toDate }
+  );
 
   const allTickets = ticketQuery.data || [];
   const allUsersRaw = userQuery.data || [];
@@ -49,18 +60,23 @@ export default function ReportesScreen({ user }: ReportesScreenProps) {
   const rows = summary?.rows || [];
 
   // Scope: admin can filter by group/user; supervisor/collector already limited by API to their group
+  // En modo monitor forzamos un solo usuario.
   const scopedUsers = useMemo(() => {
+    if (isMonitoring && viewUser) {
+      return [{ id: viewUser.id, name: viewUser.name, bankNumber: viewUser.bankNumber }];
+    }
     let list = allUsers;
     if (filterGroupId) list = list.filter((u: any) => String(u.groupId) === filterGroupId);
     if (filterUserId) list = list.filter((u: any) => String(u.id) === filterUserId);
     return list;
-  }, [allUsers, filterGroupId, filterUserId]);
+  }, [allUsers, filterGroupId, filterUserId, isMonitoring, viewUser]);
 
   const scopedUserIds = useMemo(() => new Set(scopedUsers.map((u: any) => u.id)), [scopedUsers]);
 
   const ticketsInRange = allTickets.filter((t: any) => {
     if (t.status === "cancelled") return false;
     if (!inDateRange(t.createdAt, fromDate, toDate)) return false;
+    if (isMonitoring) return t.userId === viewUser!.id;
     if (!isManager) return t.userId === user.id;
     if (filterGroupId || filterUserId) return scopedUserIds.has(t.userId);
     return true;
@@ -75,6 +91,7 @@ export default function ReportesScreen({ user }: ReportesScreenProps) {
   }, 0);
 
   const rowsScoped = rows.filter((r: any) => {
+    if (isMonitoring) return r.userId === viewUser!.id;
     if (!isManager) return r.userId === user.id;
     if (filterGroupId || filterUserId) return scopedUserIds.has(r.userId);
     return true;
@@ -107,7 +124,26 @@ export default function ReportesScreen({ user }: ReportesScreenProps) {
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar px-4 py-4 space-y-4">
-      <h2 className="text-xl font-bold text-gray-900">{t(lang, "ventas_title")}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-xl font-bold text-gray-900">{t(lang, "ventas_title")}</h2>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-bold hover:bg-gray-200"
+          >
+            Cerrar
+          </button>
+        )}
+      </div>
+
+      {isMonitoring && viewUser && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs text-blue-800">
+          <span className="font-bold">Monitoreando:</span>{" "}
+          {viewUser.name || "Usuario"}{" "}
+          {viewUser.bankNumber ? `(${viewUser.bankNumber})` : ""}
+        </div>
+      )}
 
       {/* Filtro de fecha */}
       <div className="bg-white rounded-xl border border-green-100 p-3 shadow-sm">
@@ -121,8 +157,8 @@ export default function ReportesScreen({ user }: ReportesScreenProps) {
           {!isToday && <button onClick={resetToToday} className="px-2 py-1.5 bg-gray-100 text-gray-500 rounded-lg text-xs font-bold">{t(lang, "balance_today_btn")}</button>}
         </div>
 
-        {/* Admin: filtros por grupo y usuario */}
-        {isAdmin && (
+        {/* Admin: filtros por grupo y usuario (oculto en modo monitor) */}
+        {isAdmin && !isMonitoring && (
           <div className="flex gap-2 mt-2">
             <select
               value={filterGroupId}

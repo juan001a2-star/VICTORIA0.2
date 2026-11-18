@@ -41,31 +41,58 @@ export default function SorteosScreen({ user }: SorteosScreenProps) {
     { enabled: canImport && showImport, staleTime: 30_000 }
   );
 
-  // Alerta de resultados nuevos (poll cada 2 min para admin/supervisor)
+  // Alerta post-cierre: loterías que cerraron hace ≥10 min sin resultado (+ scrape)
+  const dueQuery = trpc.results.dueAfterClose.useQuery(
+    { delayMinutes: 10, windowHours: 6, scrape: true },
+    { enabled: canImport, refetchInterval: 90_000 }
+  );
+
+  // Números detectados aunque el horario aún no marque “cerrado”
   const checkNewQuery = trpc.results.checkNew.useQuery(undefined, {
     enabled: canImport,
-    refetchInterval: 120_000,
+    refetchInterval: 180_000,
   });
 
   const lotteries = (lotteryQuery.data || []).filter((l: any) => l.active);
   const winners = winnerQuery.data || [];
 
   useEffect(() => {
-    const count = checkNewQuery.data?.pendingCount ?? 0;
+    const dueCount = dueQuery.data?.needActionCount ?? 0;
+    const scrapeCount = checkNewQuery.data?.pendingCount ?? 0;
+    const count = Math.max(dueCount, scrapeCount);
     setPendingAlert(count);
-    if (count > 0) {
-      const key = `${checkNewQuery.data?.date}-${count}-${(checkNewQuery.data?.pending || []).map((p: any) => p.lotteryId).join(",")}`;
+
+    const dueItems = dueQuery.data?.needAction || [];
+    const withNums = dueItems.filter((x: any) => x.scraped);
+    if (dueCount > 0) {
+      const key = `due-${dueQuery.data?.checkedAt}-${dueCount}`;
       if (alertedRef.current !== key) {
         alertedRef.current = key;
-        const names = (checkNewQuery.data?.pending || []).slice(0, 3).map((p: any) => p.lotteryName).join(", ");
+        const names = dueItems.slice(0, 3).map((p: any) => p.lotteryName).join(", ");
+        pushAppNotification(
+          withNums.length ? "Resultados listos para confirmar" : "Sorteos cerrados sin resultado",
+          withNums.length
+            ? `${withNums.length} con números detectados · ${names}${dueCount > 3 ? "…" : ""}. Abre Sorteos → Importar.`
+            : `${dueCount} lotería(s) cerraron y aún no tienen resultado: ${names}${dueCount > 3 ? "…" : ""}.`,
+          "updateAvailable"
+        );
+      }
+    } else if (scrapeCount > 0) {
+      const key = `scrape-${checkNewQuery.data?.date}-${scrapeCount}`;
+      if (alertedRef.current !== key) {
+        alertedRef.current = key;
+        const names = (checkNewQuery.data?.pending || [])
+          .slice(0, 3)
+          .map((p: any) => p.lotteryName)
+          .join(", ");
         pushAppNotification(
           "Resultados disponibles",
-          `${count} lotería(s) con números detectados: ${names}${count > 3 ? "…" : ""}. Revisa y confirma antes de guardar.`,
+          `${scrapeCount} lotería(s) con números detectados: ${names}${scrapeCount > 3 ? "…" : ""}. Revisa y confirma.`,
           "updateAvailable"
         );
       }
     }
-  }, [checkNewQuery.data]);
+  }, [dueQuery.data, checkNewQuery.data]);
 
   const showMsg = (m: string, ms = 3500) => {
     setMessage(m);
