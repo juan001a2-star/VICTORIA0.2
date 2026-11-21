@@ -6,19 +6,21 @@ import { t } from "@/i18n";
 import { pushAppNotification } from "@/sections/SettingsScreen";
 import BalanceScreen from "@/sections/BalanceScreen";
 import ReportesScreen from "@/sections/ReportesScreen";
+import AccountingMonitoringScreen from "@/sections/AccountingMonitoringScreen";
 import {
   Ticket, Users, Plus, ArrowLeft, Trash2,
-  Settings, Trophy, Ban, BarChart3, ChevronRight, X, DollarSign, Wallet, Percent,
+  Settings, Trophy, Ban, BarChart3, ChevronRight, X, DollarSign, Wallet,
   ChevronLeft, UserPlus, Pencil, Shield, Lock, Check, Smartphone
 } from "lucide-react";
 
-type AdminSection = "menu" | "loterias" | "grupos" | "usuarios" | "premios" | "ganadores" | "anular" | "reportes" | "limites" | "config" | "dispositivos";
+type AdminSection = "menu" | "loterias" | "grupos" | "usuarios" | "premios" | "ganadores" | "anular" | "reportes" | "limites" | "config" | "dispositivos" | "contabilidad";
 
 interface AdminPanelProps {
   user: SessionUser;
 }
 
 const MENU_ITEMS = [
+  { id: "contabilidad" as AdminSection, labelKey: "Contabilidad y Monitoreo", descKey: "Tickets, ventas y notificaciones", icon: BarChart3, roles: ["admin", "supervisor"] },
   { id: "loterias" as AdminSection, labelKey: "admin_menu_loterias", descKey: "admin_menu_loterias_desc", icon: Ticket, roles: ["admin"] },
   { id: "grupos" as AdminSection, labelKey: "admin_menu_grupos", descKey: "admin_menu_grupos_desc", icon: Users, roles: ["admin"] },
   { id: "usuarios" as AdminSection, labelKey: "admin_menu_usuarios", descKey: "admin_menu_usuarios_desc", icon: Users, roles: ["admin", "supervisor"] },
@@ -49,6 +51,7 @@ export default function AdminPanel({ user }: AdminPanelProps) {
               {t(lang, MENU_ITEMS.find((m) => m.id === section)?.labelKey || "")}
             </h2>
           </div>
+          {section === "contabilidad" && (canAccess("contabilidad") ? <AccountingMonitoringScreen user={user} /> : <AccessDenied lang={lang} />)}
           {section === "loterias" && (canAccess("loterias") ? <LoteriasSection user={user} /> : <AccessDenied lang={lang} />)}
           {section === "grupos" && (canAccess("grupos") ? <GruposSection user={user} /> : <AccessDenied lang={lang} />)}
           {section === "usuarios" && (canAccess("usuarios") ? <UsuariosSection user={user} /> : <AccessDenied lang={lang} />)}
@@ -58,7 +61,7 @@ export default function AdminPanel({ user }: AdminPanelProps) {
           {section === "reportes" && (canAccess("reportes") ? <ReportesGrupoSection user={user} /> : <AccessDenied lang={lang} />)}
           {section === "limites" && (canAccess("limites") ? <LimitesSection user={user} /> : <AccessDenied lang={lang} />)}
           {section === "config" && (canAccess("config") ? <ConfigSection user={user} /> : <AccessDenied lang={lang} />)}
-          {section === "dispositivos" && (canAccess("dispositivos") ? <DispositivosSection user={user} /> : <AccessDenied lang={lang} />)}
+          {section === "dispositivos" && (canAccess("dispositivos") ? <DispositivosSection /> : <AccessDenied lang={lang} />)}
         </div>
       )}
     </div>
@@ -993,6 +996,8 @@ function AnularSection({ user }: { user: SessionUser }) {
   });
 
   const annulTicket = async (ticket: any) => {
+    const reason = window.prompt(`Motivo obligatorio para anular ${ticket.code}:`);
+    if (!reason || reason.trim().length < 3) { setMsg("Debe indicar un motivo de al menos 3 caracteres."); return; }
     if (!confirm(`${t(lang, "as_annul_confirm")} ${ticket.code}? ${t(lang, "as_confirm")}`)) return;
     const total = Number(ticket.total) || 0;
     const commission = Number(ticket.commission || 0);
@@ -1001,7 +1006,7 @@ function AnularSection({ user }: { user: SessionUser }) {
     try {
       // La restauracion del credito la hace el servidor dentro de la transaccion de anulacion
       // (ver api/ticket-router.ts) - no se debe repetir aqui o se acredita dos veces.
-      await annulTicketMut.mutateAsync({ id: ticket.id, annulledBy: user.id });
+      await annulTicketMut.mutateAsync({ id: ticket.id, annulledBy: user.id, reason: reason.trim() });
       setMsg(`${t(lang, "as_annulled")}: $${formatMoney(netDeduction)} | ${t(lang, "as_commission_kept")}: $${formatMoney(commissionKept)}`);
       setTimeout(() => setMsg(""), 5000);
     } catch (err: any) {
@@ -1539,8 +1544,7 @@ function LimitesSection({ user }: { user: SessionUser }) {
 
 
 // ─── DISPOSITIVOS (Device Binding) ─────────────────────────────────
-function DispositivosSection({ user }: { user: SessionUser }) {
-  const lang = user.language || "es";
+function DispositivosSection() {
   const utils = trpc.useUtils();
   const userList = trpc.lotteryUser.list.useQuery();
   const clearDevice = trpc.lotteryUser.clearDeviceBinding.useMutation({

@@ -5,7 +5,7 @@ import {
   saveDraft, loadDraft, clearDraft, detectPlayType,
   generatePaleCombos, generateDirectoCombos,
   generateTicketCode, calculateNetDeduction,
-  formatMoney, logAudit, displayNumber, PENDING_COPY_KEY, formatTicketShareText,
+  formatMoney, displayNumber, PENDING_COPY_KEY, formatTicketShareText,
   generateParPlays, generateDecimalPlays, generateUnidadPlays,
   generateAzarPlays, generateMezclarPlays,
   normalizeCombo,
@@ -16,7 +16,7 @@ import type { Play, PlayType, SessionUser } from "@/store";
 import { t } from "@/i18n";
 import {
   Trash2, Edit2, Check, X, Share2, Ticket,
-  ChevronDown, ChevronUp, Plus, Save, FileText,
+  ChevronDown, ChevronUp, Save, FileText,
   Keyboard, Lock, Wallet, Percent, Zap, Dices, Shuffle, Hash, Copy, Repeat, Pin, PinOff
 } from "lucide-react";
 
@@ -681,7 +681,6 @@ export default function VenderScreen({ user }: VenderScreenProps) {
     const netDeduction = calculateNetDeduction(total, userCommission);
     if (netDeduction > userCredit) { showMsg(`Credito insuficiente. Necesita: $${formatMoney(netDeduction)}`); return null; }
 
-    const newCredit = userCredit - netDeduction;
     const code = generateTicketCode();
     const now = new Date();
     const date = now.toLocaleDateString();

@@ -8,6 +8,7 @@ import {
   boolean,
   bigint,
   decimal,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 // ── AUTH USERS (from Kimi OAuth) ──────────────────────────────────────
@@ -86,6 +87,7 @@ export const tickets = pgTable("tickets", {
   status: varchar("status", { length: 20 }).default("active").notNull(),
   annulledBy: bigint("annulled_by", { mode: "number" }).references(() => lotteryUsers.id),
   annulledAt: timestamp("annulled_at"),
+  annulReason: text("annul_reason"),
   winnerId: bigint("winner_id", { mode: "number" }).references(() => winners.id),
   prizeAmount: decimal("prize_amount", { precision: 12, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -174,3 +176,19 @@ export type Config = typeof config.$inferSelect;
 export type Prize = typeof prizes.$inferSelect;
 export type PlayLimit = typeof playLimits.$inferSelect;
 export type CreditAdjustment = typeof creditAdjustments.$inferSelect;
+
+
+// ── NOTIFICATIONS (tickets and system events) ────────────────────────
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => lotteryUsers.id, { onDelete: "cascade" }),
+  ticketId: integer("ticket_id").references(() => tickets.id, { onDelete: "set null" }),
+  type: varchar("type", { length: 30 }).notNull(),
+  title: varchar("title", { length: 150 }).notNull(),
+  message: text("message").notNull(),
+  read: boolean("read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  readAt: timestamp("read_at"),
+  extra: jsonb("extra"),
+});
+export type Notification = typeof notifications.$inferSelect;

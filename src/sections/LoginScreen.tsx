@@ -40,7 +40,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [offlineMode, setOfflineMode] = useState(false);
+  const [offlineMode] = useState(false);
   const [lang, setLang] = useState<Lang>(detectBrowserLang());
   const [fpAvailable, setFpAvailable] = useState(false);
   const [fpLoading, setFpLoading] = useState(false);

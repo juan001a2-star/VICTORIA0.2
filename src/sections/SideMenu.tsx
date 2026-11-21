@@ -1,12 +1,11 @@
 import {
   X, ShoppingCart, BarChart3, Receipt, Trophy,
-  Users, LogOut, ShieldCheck, Download, Upload, Globe, Settings
+  Users, LogOut, ShieldCheck, Download, Upload, Settings
 } from "lucide-react";
 import type { SessionUser } from "@/store"
 import { formatMoney } from "@/store";
 import { downloadDataFile, importDataFile } from "@/lib/sync-file";
-import { trpc } from "@/providers/trpc";
-import { LANG_NAMES, t, type Lang } from "@/i18n";
+import { t, type Lang } from "@/i18n";
 
 interface SideMenuProps {
   open: boolean;
@@ -30,14 +29,8 @@ const ADMIN_ITEMS = [
   { id: "admin", key: "nav_admin", icon: ShieldCheck },
 ];
 
-export default function SideMenu({ open, onClose, user, onNavigate, onLogout, onLanguageChange }: SideMenuProps) {
-  const setLanguageMut = trpc.lotteryUser.setLanguage.useMutation();
+export default function SideMenu({ open, onClose, user, onNavigate, onLogout }: SideMenuProps) {
   const currentLang: Lang = user.language || "es";
-  const changeLanguage = (lang: Lang) => {
-    if (lang === currentLang) return;
-    setLanguageMut.mutate({ language: lang });
-    onLanguageChange(lang);
-  };
   if (!open) return null;
 
   return (

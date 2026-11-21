@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { createRouter, lotteryAuthedQuery, managerLotteryQuery, adminLotteryQuery, creditOpsLotteryQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { winners, tickets, plays, lotteryUsers, prizes, creditAdjustments } from "@db/schema";
-import { eq, desc, and, gte, lt, isNull } from "drizzle-orm";
+import { winners, tickets, plays, lotteryUsers, prizes, creditAdjustments, notifications } from "@db/schema";
+import { eq, desc, and, gte, lt, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 // drawDate llega como "YYYYMMDD". Convierte a rango [inicio del dia, inicio del dia siguiente)
@@ -208,6 +208,15 @@ export const winnerRouter = createRouter({
               });
             }
             winningResults.push({ ticketId: ticket.id, ticketCode: ticket.code, userId: ticket.userId, totalPrize: ticketPrize, details });
+            const managerRows = await tx.select({ id: lotteryUsers.id }).from(lotteryUsers)
+              .where(inArray(lotteryUsers.role, ["admin", "supervisor"]));
+            const recipients = [...new Set([ticket.userId, ...managerRows.map(m => m.id)])];
+            if (recipients.length) await tx.insert(notifications).values(recipients.map(userId => ({
+              userId, ticketId: ticket.id, type: "ticket_winner",
+              title: "¡Ticket ganador!",
+              message: `El ticket ${ticket.code} obtuvo un premio de $${ticketPrize.toFixed(2)}.`,
+              extra: { ticketCode: ticket.code, prize: ticketPrize, details },
+            })));
           }
         }
 
@@ -310,6 +319,21 @@ export const winnerRouter = createRouter({
         }
       }
 
+      if (winningResults.length) {
+        const managers = await db.select({ id: lotteryUsers.id }).from(lotteryUsers)
+          .where(inArray(lotteryUsers.role, ["admin", "supervisor"]));
+        for (const winner of winningResults) {
+          const recipients = [...new Set([winner.userId, ...managers.map(m => m.id)])];
+          if (recipients.length) {
+            await db.insert(notifications).values(recipients.map(userId => ({
+              userId, ticketId: winner.ticketId, type: "ticket_winner",
+              title: "¡Ticket ganador!",
+              message: `El ticket ${winner.ticketCode} obtuvo un premio de $${winner.totalPrize.toFixed(2)}.`,
+              extra: { ticketCode: winner.ticketCode, prize: winner.totalPrize, details: winner.details },
+            })));
+          }
+        }
+      }
       return { id: winnerId, processed: winningResults.length, winners: winningResults };
     }),
 

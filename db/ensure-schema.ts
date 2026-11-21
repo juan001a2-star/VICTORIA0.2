@@ -27,6 +27,21 @@ async function main() {
     `ALTER TABLE lottery_users ADD COLUMN IF NOT EXISTS bound_device_label varchar(120)`,
     `ALTER TABLE lottery_users ADD COLUMN IF NOT EXISTS bound_at timestamp`,
     `ALTER TABLE lottery_users ADD COLUMN IF NOT EXISTS language varchar(5) DEFAULT 'es'`,
+    `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS annul_reason text`,
+    `CREATE TABLE IF NOT EXISTS notifications (
+      id serial PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES lottery_users(id) ON DELETE CASCADE,
+      ticket_id INTEGER REFERENCES tickets(id) ON DELETE SET NULL,
+      type varchar(30) NOT NULL,
+      title varchar(150) NOT NULL,
+      message text NOT NULL,
+      read boolean NOT NULL DEFAULT false,
+      created_at timestamp NOT NULL DEFAULT NOW(),
+      read_at timestamp,
+      extra jsonb
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, read)`,
+    `CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC)`,
   ];
 
   for (const sql of statements) {
