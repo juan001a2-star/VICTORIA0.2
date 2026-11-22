@@ -149,14 +149,12 @@ export default function SorteosScreen({ user }: SorteosScreenProps) {
     let ok = 0;
     let fail = 0;
     for (const it of toImport) {
-      const scraped = it.scraped;
-      if (!scraped) continue;
       try {
         await createWinner.mutateAsync({
           lotteryId: it.lotteryId,
-          firstPrize: scraped.firstPrize,
-          secondPrize: scraped.secondPrize,
-          thirdPrize: scraped.thirdPrize,
+          firstPrize: it.scraped.firstPrize,
+          secondPrize: it.scraped.secondPrize,
+          thirdPrize: it.scraped.thirdPrize,
           drawDate: selectedDate.replace(/-/g, ""),
         });
         ok++;

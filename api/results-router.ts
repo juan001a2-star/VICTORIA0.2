@@ -3,8 +3,10 @@ import { createRouter, managerLotteryQuery, creditOpsLotteryQuery } from "./midd
 import { getDb } from "./queries/connection";
 import { lotteries, winners } from "@db/schema";
 import { eq, and } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import {
   scrapeAllResults,
+  buildManualPreview,
   todayISO,
   pad2,
   type ScrapedResult,
@@ -120,7 +122,7 @@ export const resultsRouter = createRouter({
           .min(1),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const drawDate = drawDateYmd(input.date);
       const imported: Array<{ lotteryId: number; winnerId: number }> = [];

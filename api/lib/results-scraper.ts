@@ -98,6 +98,17 @@ function parseDateFromText(text: string): string | null {
   return null;
 }
 
+/** Extrae trios de números (00-99) de un bloque de texto */
+function extractTriple(text: string): [string, string, string] | null {
+  const nums = text.match(/\b\d{1,2}\b/g);
+  if (!nums || nums.length < 3) return null;
+  const a = pad2(nums[0]);
+  const b = pad2(nums[1]);
+  const c = pad2(nums[2]);
+  if (!a || !b || !c) return null;
+  return [a, b, c];
+}
+
 /**
  * Parseo genérico de HTML: busca secciones con nombres de lotería
  * y los 3 números siguientes.

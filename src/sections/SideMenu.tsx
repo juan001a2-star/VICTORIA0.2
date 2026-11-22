@@ -1,11 +1,12 @@
 import {
   X, ShoppingCart, BarChart3, Receipt, Trophy,
-  Users, LogOut, ShieldCheck, Download, Upload, Settings
+  Users, LogOut, ShieldCheck, Download, Upload, Globe, Settings, LineChart
 } from "lucide-react";
 import type { SessionUser } from "@/store"
 import { formatMoney } from "@/store";
 import { downloadDataFile, importDataFile } from "@/lib/sync-file";
-import { t, type Lang } from "@/i18n";
+import { trpc } from "@/providers/trpc";
+import { LANG_NAMES, t, type Lang } from "@/i18n";
 
 interface SideMenuProps {
   open: boolean;
@@ -27,10 +28,17 @@ const MENU_ITEMS = [
 
 const ADMIN_ITEMS = [
   { id: "admin", key: "nav_admin", icon: ShieldCheck },
+  { id: "monitoreo", key: "nav_monitoreo", icon: LineChart },
 ];
 
-export default function SideMenu({ open, onClose, user, onNavigate, onLogout }: SideMenuProps) {
+export default function SideMenu({ open, onClose, user, onNavigate, onLogout, onLanguageChange }: SideMenuProps) {
+  const setLanguageMut = trpc.lotteryUser.setLanguage.useMutation();
   const currentLang: Lang = user.language || "es";
+  const changeLanguage = (lang: Lang) => {
+    if (lang === currentLang) return;
+    setLanguageMut.mutate({ language: lang });
+    onLanguageChange(lang);
+  };
   if (!open) return null;
 
   return (
@@ -58,7 +66,14 @@ export default function SideMenu({ open, onClose, user, onNavigate, onLogout }: 
 
         {/* Menu Items */}
         <nav className="flex-1 py-3 overflow-y-auto">
-          {MENU_ITEMS.filter((item) => user.role === "user" || (item.id !== "vender" && item.id !== "balance" && item.id !== "tickets")).map((item) => (
+          {MENU_ITEMS.filter((item) => {
+            // Vendedores ven vender + balance + tickets
+            if (user.role === "user") return true;
+            // Managers no ven vender ni balance de vendedor
+            if (item.id === "vender" || item.id === "balance") return false;
+            // Tickets sí visibles para supervisor/admin (gestión + anulación)
+            return true;
+          }).map((item) => (
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
@@ -72,14 +87,24 @@ export default function SideMenu({ open, onClose, user, onNavigate, onLogout }: 
           {(user.role === "admin" || user.role === "supervisor" || user.role === "collector") && (
             <>
               <div className="mx-5 my-2 border-t border-gray-100" />
-              {ADMIN_ITEMS.map((item) => (
+              {ADMIN_ITEMS.filter((item) => {
+                // Monitoreo solo admin/supervisor
+                if (item.id === "monitoreo") return user.role === "admin" || user.role === "supervisor";
+                return true;
+              }).map((item) => (
                 <button
                   key={item.id}
                   onClick={() => onNavigate(item.id)}
                   className="w-full flex items-center gap-3 px-5 py-3 text-gray-700 hover:bg-[var(--bv-primary-light)] transition-colors text-left"
                 >
                   <item.icon size={20} className="text-[var(--bv-primary)]" />
-                  <span className="text-sm font-medium">{user.role === "collector" ? t(currentLang, "nav_cobros") : t(currentLang, item.key)}</span>
+                  <span className="text-sm font-medium">
+                    {item.id === "monitoreo"
+                      ? "Contabilidad y Monitoreo"
+                      : user.role === "collector"
+                        ? t(currentLang, "nav_cobros")
+                        : t(currentLang, item.key)}
+                  </span>
                 </button>
               ))}
             </>

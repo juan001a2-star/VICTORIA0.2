@@ -76,7 +76,7 @@ async function seed() {
     ] as const;
 
     const existingLotteries = await db.select().from(lotteries);
-    const desiredNames = new Set<string>(desiredLotteries.map(([name]) => name));
+    const desiredNames = new Set(desiredLotteries.map(([name]) => name));
     for (const [name, drawTime, closeTime] of desiredLotteries) {
       const existing = existingLotteries.find((item) => item.name === name);
       const values = {
