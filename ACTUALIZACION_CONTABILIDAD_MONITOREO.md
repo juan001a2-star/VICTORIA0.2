@@ -21,13 +21,16 @@
 - Nuevo endpoint `report.monitoring`:
   - Filtros: rango de fechas + vendedor opcional.
   - Resumen: total vendido, tickets, comisiones, premios.
+  - **Lista de tickets** con: vendedor, # de ticket, jugadas (número + tipo), monto.
   - Por tipo de jugada (Directo, Palé, Tripleta, etc.).
   - Detalle por número/combinación.
 
 ### 3. Frontend
 - **Pantalla Contabilidad y Monitoreo** (`MonitoreoScreen`):
   - Visible solo para `admin` y `supervisor`.
-  - Cards de resumen + lista por tipo + detalle por número (ordenable).
+  - Cards de resumen.
+  - **Vista principal “Por ticket”**: tabla con columnas Vendedor | # de ticket | Jugadas | Monto (formato solicitado).
+  - Vista “Por tipo”: lista por tipo de jugada + detalle por número (ordenable).
 - Menú lateral: nuevo ítem **“Contabilidad y Monitoreo”**.
 - **Tickets**:
   - Al anular se pide motivo obligatorio.

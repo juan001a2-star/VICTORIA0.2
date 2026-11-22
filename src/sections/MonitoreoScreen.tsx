@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import type { SessionUser } from "@/store";
 import { formatMoney } from "@/store";
-import { BarChart3, Calendar, Filter, ChevronRight, ArrowLeft, Users } from "lucide-react";
+import { BarChart3, Calendar, Filter, ChevronRight, ArrowLeft, Users, List, Hash } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 
 interface MonitoreoScreenProps {
@@ -26,6 +26,8 @@ const TYPE_LABELS: Record<string, string> = {
   cuatro_cifras: "Cuatro Cifras",
 };
 
+type ViewMode = "tickets" | "byType";
+
 export default function MonitoreoScreen({ user }: MonitoreoScreenProps) {
   const today = todayStr();
   const [fromDate, setFromDate] = useState(today);
@@ -33,6 +35,7 @@ export default function MonitoreoScreen({ user }: MonitoreoScreenProps) {
   const [filterUserId, setFilterUserId] = useState<string>("");
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"count" | "amount" | "number">("count");
+  const [viewMode, setViewMode] = useState<ViewMode>("tickets");
 
   const usersQuery = trpc.lotteryUser.list.useQuery();
   const monitoring = trpc.report.monitoring.useQuery({
@@ -46,6 +49,7 @@ export default function MonitoreoScreen({ user }: MonitoreoScreenProps) {
   const summary = data?.summary;
   const byType = data?.byType || [];
   const byNumber = data?.byNumber || [];
+  const ticketList = data?.tickets || [];
 
   const detailList = useMemo(() => {
     if (!selectedType) return [];
@@ -67,7 +71,7 @@ export default function MonitoreoScreen({ user }: MonitoreoScreenProps) {
           <BarChart3 size={22} />
           <h1 className="text-lg font-bold">Contabilidad y Monitoreo</h1>
         </div>
-        <p className="text-green-100 text-xs">Ventas por tipo de jugada y por número</p>
+        <p className="text-green-100 text-xs">Ventas por vendedor, ticket y tipo de jugada</p>
       </div>
 
       <div className="px-4 -mt-3 space-y-4">
@@ -142,8 +146,94 @@ export default function MonitoreoScreen({ user }: MonitoreoScreenProps) {
           </div>
         )}
 
-        {/* Detalle por tipo o por número */}
-        {!selectedType ? (
+        {/* Tabs: Tickets | Por tipo */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setViewMode("tickets");
+              setSelectedType(null);
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+              viewMode === "tickets"
+                ? "bg-[var(--bv-primary)] text-white shadow-sm"
+                : "bg-white text-gray-600 border border-gray-200"
+            }`}
+          >
+            <List size={16} />
+            Por ticket
+          </button>
+          <button
+            onClick={() => setViewMode("byType")}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+              viewMode === "byType"
+                ? "bg-[var(--bv-primary)] text-white shadow-sm"
+                : "bg-white text-gray-600 border border-gray-200"
+            }`}
+          >
+            <Hash size={16} />
+            Por tipo
+          </button>
+        </div>
+
+        {/* Vista principal: lista de tickets */}
+        {viewMode === "tickets" && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <h2 className="font-bold text-gray-900 text-sm">Detalle de tickets</h2>
+              <p className="text-[11px] text-gray-500">Vendedor · Ticket · Jugadas · Monto</p>
+            </div>
+            {monitoring.isLoading ? (
+              <div className="p-6 text-center text-gray-400 text-sm">Cargando...</div>
+            ) : ticketList.length === 0 ? (
+              <div className="p-6 text-center text-gray-400 text-sm">Sin ventas en el rango seleccionado</div>
+            ) : (
+              <div className="overflow-x-auto">
+                {/* Header de tabla */}
+                <div className="min-w-[480px]">
+                  <div className="grid grid-cols-[1fr_1.2fr_1.4fr_0.7fr] gap-1 px-3 py-2 bg-gray-50 text-[11px] font-semibold text-gray-500 border-b border-gray-100">
+                    <span>Vendedor</span>
+                    <span># de ticket</span>
+                    <span>Jugadas</span>
+                    <span className="text-right">Monto</span>
+                  </div>
+                  <div className="divide-y divide-gray-50">
+                    {ticketList.map((row) => (
+                      <div
+                        key={row.code}
+                        className="grid grid-cols-[1fr_1.2fr_1.4fr_0.7fr] gap-1 px-3 py-2.5 items-center text-sm hover:bg-green-50/50"
+                      >
+                        <span className="font-medium text-gray-900 truncate" title={row.sellerName}>
+                          {row.sellerName}
+                        </span>
+                        <span className="font-mono text-[12px] text-gray-700 truncate" title={row.code}>
+                          {row.code}
+                        </span>
+                        <span className="text-gray-600 text-[12px] leading-snug" title={row.jugadas}>
+                          {row.jugadas}
+                        </span>
+                        <span className="text-right font-semibold text-[var(--bv-primary-dark)]">
+                          ${formatMoney(row.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Total */}
+                  <div className="grid grid-cols-[1fr_1.2fr_1.4fr_0.7fr] gap-1 px-3 py-3 bg-gray-50 border-t border-gray-100 items-center">
+                    <span className="font-bold text-gray-900 text-sm col-span-3">
+                      TOTAL ({ticketList.length} tickets)
+                    </span>
+                    <span className="text-right font-extrabold text-[var(--bv-primary-dark)]">
+                      ${formatMoney(summary?.totalSales || "0")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Vista por tipo de jugada */}
+        {viewMode === "byType" && !selectedType && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100">
               <h2 className="font-bold text-gray-900 text-sm">Por tipo de jugada</h2>
@@ -181,7 +271,10 @@ export default function MonitoreoScreen({ user }: MonitoreoScreenProps) {
               </div>
             )}
           </div>
-        ) : (
+        )}
+
+        {/* Detalle por número (cuando se selecciona un tipo) */}
+        {viewMode === "byType" && selectedType && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
               <button

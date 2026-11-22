@@ -124,16 +124,30 @@ export const reportRouter = createRouter({
           },
           byType: [] as { type: string; count: number; amount: string }[],
           byNumber: [] as { type: string; number: string; count: number; amount: string }[],
+          tickets: [] as {
+            code: string;
+            sellerName: string;
+            sellerId: number;
+            jugadas: string;
+            amount: string;
+            createdAt: string;
+          }[],
         };
       }
 
       const allPlays = await db.select().from(plays);
       const relevantPlays = allPlays.filter((p) => ticketIds.includes(p.ticketId));
 
+      // Mapa de usuarios para nombres de vendedores
+      const allUsers = await db.select().from(lotteryUsers);
+      const userMap = new Map(allUsers.map((u) => [u.id, u.name]));
+
       // Agregar por tipo
       const typeMap = new Map<string, { count: number; amount: number }>();
       // Agregar por tipo+número
       const numberMap = new Map<string, { type: string; number: string; count: number; amount: number }>();
+      // Plays por ticket
+      const playsByTicket = new Map<number, { number: string; type: string; amount: number }[]>();
 
       for (const p of relevantPlays) {
         const type = p.type || "directo";
@@ -150,7 +164,42 @@ export const reportRouter = createRouter({
         nEntry.count += 1;
         nEntry.amount += amt;
         numberMap.set(key, nEntry);
+
+        const list = playsByTicket.get(p.ticketId) || [];
+        list.push({ number: num, type, amount: amt });
+        playsByTicket.set(p.ticketId, list);
       }
+
+      const TYPE_SHORT: Record<string, string> = {
+        directo: "directo",
+        pale: "pales",
+        tripleta: "tripleta",
+        terna: "cifras",
+        cuatrena: "cifras",
+        tres_cifras: "cifras",
+        cuatro_cifras: "cifras",
+      };
+
+      // Lista de tickets con vendedor, código, jugadas y monto
+      const ticketList = ticketRows
+        .map((t) => {
+          const playsList = playsByTicket.get(t.id) || [];
+          const jugadas =
+            playsList.length === 0
+              ? "—"
+              : playsList
+                  .map((pl) => `${pl.number} (${TYPE_SHORT[pl.type] || pl.type})`)
+                  .join(", ");
+          return {
+            code: t.code,
+            sellerName: userMap.get(t.userId) || `Usuario #${t.userId}`,
+            sellerId: t.userId,
+            jugadas,
+            amount: Number(t.total || 0).toFixed(2),
+            createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : "",
+          };
+        })
+        .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
 
       const byType = Array.from(typeMap.entries())
         .map(([type, v]) => ({ type, count: v.count, amount: v.amount.toFixed(2) }))
@@ -169,6 +218,7 @@ export const reportRouter = createRouter({
         },
         byType,
         byNumber,
+        tickets: ticketList,
       };
     }),
 });

@@ -150,6 +150,9 @@ export default function VenderScreen({ user }: VenderScreenProps) {
   const [quickCount, setQuickCount] = useState("5");
   const [quickPlayType, setQuickPlayType] = useState<PlayType>("directo");
 
+  // Selector de tipo de jugada (manual). "auto" = detectar por longitud del número
+  const [manualPlayType, setManualPlayType] = useState<"auto" | PlayType>("auto");
+
   // Sync credit from API
   useEffect(() => {
     if (apiCredit !== userCredit) {
@@ -349,6 +352,28 @@ export default function VenderScreen({ user }: VenderScreenProps) {
               const cleanNumber = (detectedType === "pale" || detectedType === "tripleta") ? cleanDigits : partBase.replace(/[^0-9.]/g, "");
               combosToAdd.push({ number: cleanNumber.replace(".", ""), type: detectedType });
             }
+          } else if (manualPlayType !== "auto") {
+            // Tipo forzado por el selector manual
+            const forcedType = manualPlayType as PlayType;
+            if (forcedType === "directo" && cleanDigits.length !== 2) {
+              showMsg(`Directo requiere 2 cifras (ej: 25)`); continue;
+            }
+            if (forcedType === "pale" && cleanDigits.length !== 4) {
+              showMsg(`Palé requiere 4 cifras (ej: 1234)`); continue;
+            }
+            if (forcedType === "tripleta" && cleanDigits.length !== 6) {
+              showMsg(`Tripleta requiere 6 cifras (ej: 123456)`); continue;
+            }
+            if (forcedType === "terna" && cleanDigits.length !== 3) {
+              showMsg(`Tres cifras requiere 3 dígitos (ej: 128)`); continue;
+            }
+            if (forcedType === "cuatrena" && cleanDigits.length !== 4) {
+              showMsg(`Cuatro cifras requiere 4 dígitos (ej: 2458)`); continue;
+            }
+            const cleanNumber = (forcedType === "pale" || forcedType === "tripleta")
+              ? cleanDigits
+              : partBase.replace(/[^0-9]/g, "");
+            combosToAdd.push({ number: cleanNumber, type: forcedType });
           } else {
             // Sin /: tipo por longitud / punto (cuatrena)
             // 2 cifras → directo; 3 → terna; 4 → pale; 6 → tripleta; con . → cuatrena
@@ -393,7 +418,7 @@ export default function VenderScreen({ user }: VenderScreenProps) {
     if (!amountPinned) setAmount("");
     // Después de agregar jugada, el foco vuelve siempre a la casilla de números
     setActiveField("numero");
-  }, [input, amount, amountPinned, selectedLotteries, showMsg, normalizePlayNumber, userCredit, user.id]);
+  }, [input, amount, amountPinned, selectedLotteries, showMsg, normalizePlayNumber, userCredit, user.id, manualPlayType]);
 
   const handleKeypad = useCallback((key: string) => {
     if (activeField === "monto") {
@@ -1009,6 +1034,30 @@ export default function VenderScreen({ user }: VenderScreenProps) {
       )}
 
       <div className="px-3 pt-2 pb-1 bg-white border-t border-green-100 shrink-0 space-y-1.5">
+        {/* Selector de tipo de jugada */}
+        <div className="flex gap-1 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 scrollbar-hide">
+          {([
+            { value: "auto" as const, label: "Auto" },
+            { value: "directo" as const, label: "Directo" },
+            { value: "pale" as const, label: "Palé" },
+            { value: "terna" as const, label: "3 Cifras" },
+            { value: "cuatrena" as const, label: "4 Cifras" },
+            { value: "tripleta" as const, label: "Tripleta" },
+          ]).map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setManualPlayType(opt.value)}
+              className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border ${
+                manualPlayType === opt.value
+                  ? "bg-[var(--bv-primary)] text-white border-[var(--bv-primary)] shadow-sm"
+                  : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
         <div className="flex gap-2">
           <div className="flex-1 relative">
             <div
@@ -1272,7 +1321,9 @@ export default function VenderScreen({ user }: VenderScreenProps) {
                 <p className="text-sm text-gray-600">Genera jugadas aleatorias.</p>
                 <select value={quickPlayType} onChange={(e) => setQuickPlayType(e.target.value as PlayType)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                   <option value="directo">Directo (2 cifras)</option>
-                  <option value="pale">Pale (4 cifras)</option>
+                  <option value="pale">Palé (4 cifras)</option>
+                  <option value="terna">Tres cifras (3 dígitos)</option>
+                  <option value="cuatrena">Cuatro cifras (4 dígitos)</option>
                   <option value="tripleta">Tripleta (6 cifras)</option>
                 </select>
                 <div>
