@@ -262,13 +262,15 @@ export async function scrapeAllResults(opts?: {
     }
   }
 
-  // Si faltan loterías críticas y está instalado Playwright, intentar JS-render
-  const missingCritical = (opts?.onlySystemNames || Object.keys(LOTTERY_ALIASES)).filter(
-    (n) => !bySystem.has(n) && /leidsa|nacional|loteka|real|gana/i.test(n)
+  // Si quedan sorteos sin datos, intentar una segunda lectura con Chromium.
+  // Esto no evita bloqueos del sitio: si Conectate responde 403 también al
+  // navegador, se registra el error y el resultado permanece sin datos.
+  const missingForBrowser = (opts?.onlySystemNames || Object.keys(LOTTERY_ALIASES)).filter(
+    (n) => !bySystem.has(n)
   );
-  if (missingCritical.length > 0) {
+  if (missingForBrowser.length > 0) {
     try {
-      const pw = await scrapeWithPlaywrightOptional(missingCritical);
+      const pw = await scrapeWithPlaywrightOptional(missingForBrowser);
       for (const r of pw.results) {
         if (!bySystem.has(r.systemName)) bySystem.set(r.systemName, r);
       }
@@ -310,21 +312,54 @@ async function scrapeWithPlaywrightOptional(
     const page = await browser.newPage();
     const urls = [
       "https://loterias.do/",
+      "https://loterias.do/leidsa/",
       "https://www.leidsa.com/",
       REFERENCE_LOTTERIES_URL,
       "https://www.conectate.com.do/loterias/americanas/new-york-medio-dia/",
       "https://www.conectate.com.do/loterias/americanas/new-york-noche/",
     ];
-    for (const url of urls) {
+
+    // Intentar descubrir enlaces del directorio incluso si su HTML inicial
+    // depende de JavaScript. No se interpreta el índice como resultados.
+    const discovered: Array<{ systemName: string; url: string }> = [];
+    try {
+      const response = await page.goto(REFERENCE_LOTTERIES_URL, {
+        waitUntil: "domcontentloaded",
+        timeout: 25000,
+      });
+      if (response && response.status() >= 400) {
+        errors.push(`pw ${REFERENCE_LOTTERIES_URL}: HTTP ${response.status()}`);
+      } else {
+        await page.waitForTimeout(1200);
+        discovered.push(...extractConectateLotteryLinks(await page.content()));
+      }
+    } catch (e: any) {
+      errors.push(`pw ${REFERENCE_LOTTERIES_URL}: ${e?.message || String(e)}`);
+    }
+
+    const allUrls = Array.from(new Set([
+      ...urls.filter((url) => url !== REFERENCE_LOTTERIES_URL),
+      ...discovered.map((item) => item.url),
+    ]));
+
+    for (const url of allUrls) {
       try {
-        await page.goto(url, { waitUntil: "networkidle", timeout: 20000 });
-        await page.waitForTimeout(1500);
+        const response = await page.goto(url, {
+          waitUntil: "domcontentloaded",
+          timeout: 25000,
+        });
+        if (response && response.status() >= 400) {
+          errors.push(`pw ${url}: HTTP ${response.status()}`);
+          continue;
+        }
+        await page.waitForTimeout(1200);
         const html = await page.content();
-        const parsed = parseGenericHtml(html, url + "#pw");
+        const parsed = parseGenericHtml(html, url + "#playwright");
         for (const r of parsed) {
           if (systemNames.length && !systemNames.includes(r.systemName)) continue;
           if (!results.some((x) => x.systemName === r.systemName)) {
-            results.push({ ...r, confidence: "high", source: url + " (playwright)" });
+            // El parseo genérico requiere confirmación humana; no elevar a high.
+            results.push({ ...r, confidence: "medium", source: url + " (playwright)" });
           }
         }
       } catch (e: any) {

@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Instalar Playwright fuera del proyecto para evitar modificar
-# el árbol de dependencias y package-lock.json de la aplicación.
+# Instalar Playwright en un directorio aislado para no alterar
+# las dependencias ni el package-lock.json de la aplicación.
 RUN mkdir -p /opt/playwright \
     && cd /opt/playwright \
     && npm init -y \
@@ -31,5 +31,4 @@ ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
 
-# db:push + seed + servidor (el start del package.json)
 CMD ["npm", "start"]
