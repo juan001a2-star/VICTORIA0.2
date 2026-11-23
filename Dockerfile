@@ -10,7 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Instalar dependencias
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci \
+    && npm install --no-save --no-package-lock playwright@1.64.1 \
+    && npx playwright install --with-deps chromium
 
 # Código fuente
 COPY . .

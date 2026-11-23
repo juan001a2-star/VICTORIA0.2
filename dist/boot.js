@@ -6006,11 +6006,6 @@ function readSchedule(schedule) {
 }
 function lotteriesDueForResults(lotteries2, delayMinutes = 10, windowHours = 6, now = /* @__PURE__ */ new Date()) {
   const current = getNewYorkParts(now);
-  const currentDate = dateKey(
-    current.year,
-    current.month,
-    current.day
-  );
   const results = [];
   for (const lottery of lotteries2) {
     if (lottery.active === false) continue;
@@ -32242,10 +32237,10 @@ var PgEnumColumn = class extends PgColumn {
 // node_modules/drizzle-orm/subquery.js
 var Subquery = class {
   static [entityKind] = "Subquery";
-  constructor(sql3, fields, alias, isWith = false, usedTables = []) {
+  constructor(sql2, fields, alias, isWith = false, usedTables = []) {
     this._ = {
       brand: "Subquery",
-      sql: sql3,
+      sql: sql2,
       selectedFields: fields,
       alias,
       isWith,
@@ -32643,19 +32638,19 @@ function sql(strings, ...params) {
   }
   return new SQL(queryChunks);
 }
-((sql22) => {
+((sql2) => {
   function empty() {
     return new SQL([]);
   }
-  sql22.empty = empty;
+  sql2.empty = empty;
   function fromList(list) {
     return new SQL(list);
   }
-  sql22.fromList = fromList;
+  sql2.fromList = fromList;
   function raw2(str) {
     return new SQL([new StringChunk(str)]);
   }
-  sql22.raw = raw2;
+  sql2.raw = raw2;
   function join2(chunks, separator) {
     const result = [];
     for (const [i, chunk] of chunks.entries()) {
@@ -32666,24 +32661,24 @@ function sql(strings, ...params) {
     }
     return new SQL(result);
   }
-  sql22.join = join2;
+  sql2.join = join2;
   function identifier(value) {
     return new Name(value);
   }
-  sql22.identifier = identifier;
+  sql2.identifier = identifier;
   function placeholder2(name2) {
     return new Placeholder(name2);
   }
-  sql22.placeholder = placeholder2;
+  sql2.placeholder = placeholder2;
   function param2(value, encoder2) {
     return new Param(value, encoder2);
   }
-  sql22.param = param2;
+  sql2.param = param2;
 })(sql || (sql = {}));
 ((SQL2) => {
   class Aliased {
-    constructor(sql22, fieldAlias) {
-      this.sql = sql22;
+    constructor(sql2, fieldAlias) {
+      this.sql = sql2;
       this.fieldAlias = fieldAlias;
     }
     static [entityKind] = "SQL.Aliased";
@@ -35375,8 +35370,8 @@ var PgDialect = class {
       return "none";
     }
   }
-  sqlToQuery(sql22, invokeSource) {
-    return sql22.toQuery({
+  sqlToQuery(sql2, invokeSource) {
+    return sql2.toQuery({
       casing: this.casing,
       escapeName: this.escapeName,
       escapeParam: this.escapeParam,
@@ -37735,10 +37730,10 @@ var PgRelationalQuery = class extends QueryPromise {
 
 // node_modules/drizzle-orm/pg-core/query-builders/raw.js
 var PgRaw = class extends QueryPromise {
-  constructor(execute, sql3, query, mapBatchResult) {
+  constructor(execute, sql2, query, mapBatchResult) {
     super();
     this.execute = execute;
-    this.sql = sql3;
+    this.sql = sql2;
     this.query = query;
     this.mapBatchResult = mapBatchResult;
   }
@@ -38058,8 +38053,8 @@ var NoopCache = class extends Cache {
   async onMutate(_params) {
   }
 };
-async function hashQuery(sql3, params) {
-  const dataToHash = `${sql3}-${JSON.stringify(params)}`;
+async function hashQuery(sql2, params) {
+  const dataToHash = `${sql2}-${JSON.stringify(params)}`;
   const encoder2 = new TextEncoder();
   const data = encoder2.encode(dataToHash);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -38192,8 +38187,8 @@ var PgSession = class {
     ).all();
   }
   /** @internal */
-  async count(sql22, token) {
-    const res = await this.execute(sql22, token);
+  async count(sql2, token) {
+    const res = await this.execute(sql2, token);
     return Number(
       res[0]["count"]
     );
@@ -38415,8 +38410,8 @@ var NodePgSession = class _NodePgSession extends PgSession {
       if (isPool) session.client.release();
     }
   }
-  async count(sql22) {
-    const res = await this.execute(sql22);
+  async count(sql2) {
+    const res = await this.execute(sql2);
     return Number(
       res["rows"][0]["count"]
     );
@@ -38626,15 +38621,11 @@ var tickets = pgTable("tickets", {
   commission: decimal("commission", { precision: 5, scale: 2 }).default("10.00").notNull(),
   netDeduction: decimal("net_deduction", { precision: 10, scale: 2 }).default("0.00").notNull(),
   status: varchar("status", { length: 20 }).default("active").notNull(),
-  // active | cancelled | winner | paid | loser
   annulledBy: bigint4("annulled_by", { mode: "number" }).references(() => lotteryUsers.id),
   annulledAt: timestamp("annulled_at"),
   annulReason: text("annul_reason"),
-  // motivo obligatorio al anular (Contabilidad/Monitoreo)
   winnerId: bigint4("winner_id", { mode: "number" }).references(() => winners.id),
   prizeAmount: decimal("prize_amount", { precision: 12, scale: 2 }),
-  processedAt: timestamp("processed_at"),
-  // fecha en que se procesó el sorteo
   createdAt: timestamp("created_at").defaultNow().notNull()
 });
 var plays = pgTable("plays", {
@@ -38644,23 +38635,7 @@ var plays = pgTable("plays", {
   amount: decimal("amount", { precision: 10, scale: 2 }).default("0.00").notNull(),
   type: varchar("play_type", { length: 20 }).default("directo").notNull(),
   lotteryId: bigint4("lottery_id", { mode: "number" }).notNull().references(() => lotteries.id),
-  isWinner: boolean4("is_winner").default(false).notNull(),
-  prize: decimal("prize", { precision: 12, scale: 2 }).default("0.00"),
   createdAt: timestamp("created_at").defaultNow().notNull()
-});
-var notifications = pgTable("notifications", {
-  id: serial("id").primaryKey(),
-  userId: bigint4("user_id", { mode: "number" }).notNull().references(() => lotteryUsers.id),
-  ticketId: bigint4("ticket_id", { mode: "number" }).references(() => tickets.id),
-  type: varchar("type", { length: 30 }).notNull(),
-  // ticket_ganador | ticket_anulado | sistema
-  title: varchar("title", { length: 150 }).notNull(),
-  message: text("message").notNull(),
-  read: boolean4("read").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  readAt: timestamp("read_at"),
-  dataExtra: text("data_extra")
-  // JSON string opcional
 });
 var winners = pgTable("winners", {
   id: serial("id").primaryKey(),
@@ -38714,6 +38689,18 @@ var config2 = pgTable("config", {
   key: varchar("key", { length: 100 }).notNull().unique(),
   value: text("value"),
   updatedAt: timestamp("updated_at").defaultNow().notNull().$onUpdate(() => /* @__PURE__ */ new Date())
+});
+var notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer2("user_id").notNull().references(() => lotteryUsers.id, { onDelete: "cascade" }),
+  ticketId: integer2("ticket_id").references(() => tickets.id, { onDelete: "set null" }),
+  type: varchar("type", { length: 30 }).notNull(),
+  title: varchar("title", { length: 150 }).notNull(),
+  message: text("message").notNull(),
+  read: boolean4("read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  readAt: timestamp("read_at"),
+  extra: jsonb("extra")
 });
 
 // db/relations.ts
@@ -41342,24 +41329,19 @@ var ticketRouter = createRouter({
     if (diffDays > 30) return { valid: false, reason: `Ticket expirado (${diffDays} dias)` };
     return { valid: true, ticket, ...createdAt.getTime() < new Date((/* @__PURE__ */ new Date()).setHours(0, 0, 0, 0)).getTime() ? { warning: `Ticket de hace ${diffDays} dias` } : {} };
   }),
-  annul: lotteryAuthedQuery.input(external_exports.object({
-    id: external_exports.number(),
-    annulledBy: external_exports.number(),
-    reason: external_exports.string().min(3, "El motivo de anulaci\xF3n es obligatorio (m\xEDnimo 3 caracteres)")
-  })).mutation(async ({ input: input2, ctx }) => {
+  annul: lotteryAuthedQuery.input(external_exports.object({ id: external_exports.number(), annulledBy: external_exports.number().optional(), reason: external_exports.string().trim().min(3, "Indique el motivo de anulaci\xF3n.").max(500) })).mutation(async ({ input: input2, ctx }) => {
     const db = getDb();
     const rows = await db.select().from(tickets).where(eq(tickets.id, input2.id));
     const ticket = rows[0];
     if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket no encontrado." });
     if (ticket.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: "El ticket ya no est\xE1 activo." });
-    const reason = (input2.reason || "").trim();
-    if (reason.length < 3) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "El motivo de anulaci\xF3n es obligatorio." });
-    }
     const isManager = ["admin", "supervisor"].includes(ctx.lotteryUser.role);
     if (isManager) {
-      if (ctx.lotteryUser.role === "supervisor" && ticket.userId !== input2.annulledBy) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "No puede anular tickets de otro vendedor." });
+      if (ctx.lotteryUser.role === "supervisor") {
+        const groupRows = ctx.lotteryUser.groupId ? await db.select({ id: lotteryUsers.id }).from(lotteryUsers).where(eq(lotteryUsers.groupId, ctx.lotteryUser.groupId)) : [];
+        if (!groupRows.some((row) => row.id === ticket.userId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No puede anular tickets fuera de su grupo." });
+        }
       }
     } else {
       if (ticket.userId !== ctx.lotteryUser.id) {
@@ -41376,12 +41358,17 @@ var ticketRouter = createRouter({
       }
     }
     await db.transaction(async (tx) => {
-      await tx.update(tickets).set({
-        status: "cancelled",
-        annulledBy: ctx.lotteryUser.id,
-        annulledAt: /* @__PURE__ */ new Date(),
-        annulReason: reason
-      }).where(eq(tickets.id, input2.id));
+      await tx.update(tickets).set({ status: "cancelled", annulledBy: ctx.lotteryUser.id, annulledAt: /* @__PURE__ */ new Date(), annulReason: input2.reason }).where(eq(tickets.id, input2.id));
+      const managerRows = await tx.select({ id: lotteryUsers.id }).from(lotteryUsers).where(inArray(lotteryUsers.role, ["admin", "supervisor"]));
+      const recipients = [.../* @__PURE__ */ new Set([ticket.userId, ...managerRows.map((m) => m.id)])];
+      await tx.insert(notifications).values(recipients.map((userId) => ({
+        userId,
+        ticketId: ticket.id,
+        type: "ticket_annulled",
+        title: "Ticket anulado",
+        message: `El ticket ${ticket.code} fue anulado. Motivo: ${input2.reason}`,
+        extra: { ticketCode: ticket.code, reason: input2.reason }
+      })));
       const sellerRows = await tx.select().from(lotteryUsers).where(eq(lotteryUsers.id, ticket.userId));
       if (sellerRows[0]) {
         const restored = Number(sellerRows[0].credit) + Number(ticket.netDeduction);
@@ -41396,88 +41383,6 @@ var ticketRouter = createRouter({
     return { ok: true };
   })
 });
-
-// api/notification-router.ts
-var notificationRouter = createRouter({
-  /** Lista de notificaciones del usuario logueado (más recientes primero) */
-  list: lotteryAuthedQuery.input(external_exports.object({ limit: external_exports.number().min(1).max(100).optional() }).optional()).query(async ({ ctx, input: input2 }) => {
-    const db = getDb();
-    const userId = ctx.lotteryUser.id;
-    const limit = input2?.limit ?? 50;
-    const rows = await db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt)).limit(limit);
-    return rows;
-  }),
-  /** Cantidad de no leídas (para el badge de la campanita) */
-  unreadCount: lotteryAuthedQuery.query(async ({ ctx }) => {
-    const db = getDb();
-    const userId = ctx.lotteryUser.id;
-    const rows = await db.select({ count: sql`count(*)::int` }).from(notifications).where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
-    return { count: rows[0]?.count ?? 0 };
-  }),
-  /** Marcar una como leída */
-  markRead: lotteryAuthedQuery.input(external_exports.object({ id: external_exports.number() })).mutation(async ({ ctx, input: input2 }) => {
-    const db = getDb();
-    const userId = ctx.lotteryUser.id;
-    const rows = await db.select().from(notifications).where(eq(notifications.id, input2.id));
-    const n = rows[0];
-    if (!n || n.userId !== userId) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Notificaci\xF3n no encontrada" });
-    }
-    await db.update(notifications).set({ read: true, readAt: /* @__PURE__ */ new Date() }).where(eq(notifications.id, input2.id));
-    return { ok: true };
-  }),
-  /** Marcar todas como leídas */
-  markAllRead: lotteryAuthedQuery.mutation(async ({ ctx }) => {
-    const db = getDb();
-    const userId = ctx.lotteryUser.id;
-    await db.update(notifications).set({ read: true, readAt: /* @__PURE__ */ new Date() }).where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
-    return { ok: true };
-  }),
-  /**
-   * Crear notificación (uso interno / admin).
-   * También se puede llamar desde el procesamiento de sorteos.
-   */
-  create: lotteryAuthedQuery.input(
-    external_exports.object({
-      userId: external_exports.number(),
-      ticketId: external_exports.number().optional(),
-      type: external_exports.enum(["ticket_ganador", "ticket_anulado", "sistema"]),
-      title: external_exports.string().min(1).max(150),
-      message: external_exports.string().min(1),
-      dataExtra: external_exports.string().optional()
-    })
-  ).mutation(async ({ ctx, input: input2 }) => {
-    const role = ctx.lotteryUser.role;
-    if (!["admin", "supervisor"].includes(role) && input2.userId !== ctx.lotteryUser.id) {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Sin permiso" });
-    }
-    const db = getDb();
-    const result = await db.insert(notifications).values({
-      userId: input2.userId,
-      ticketId: input2.ticketId ?? null,
-      type: input2.type,
-      title: input2.title,
-      message: input2.message,
-      read: false,
-      dataExtra: input2.dataExtra ?? null
-    }).returning();
-    return result[0];
-  })
-});
-async function createNotificationForUsers(params) {
-  const db = getDb();
-  const values = params.userIds.map((userId) => ({
-    userId,
-    ticketId: params.ticketId ?? null,
-    type: params.type,
-    title: params.title,
-    message: params.message,
-    read: false,
-    dataExtra: params.dataExtra ?? null
-  }));
-  if (values.length === 0) return;
-  await db.insert(notifications).values(values);
-}
 
 // api/winner-router.ts
 function drawDateRange(drawDate) {
@@ -41678,6 +41583,16 @@ var winnerRouter = createRouter({
             });
           }
           winningResults.push({ ticketId: ticket.id, ticketCode: ticket.code, userId: ticket.userId, totalPrize: ticketPrize, details });
+          const managerRows = await tx.select({ id: lotteryUsers.id }).from(lotteryUsers).where(inArray(lotteryUsers.role, ["admin", "supervisor"]));
+          const recipients = [.../* @__PURE__ */ new Set([ticket.userId, ...managerRows.map((m) => m.id)])];
+          if (recipients.length) await tx.insert(notifications).values(recipients.map((userId) => ({
+            userId,
+            ticketId: ticket.id,
+            type: "ticket_winner",
+            title: "\xA1Ticket ganador!",
+            message: `El ticket ${ticket.code} obtuvo un premio de $${ticketPrize.toFixed(2)}.`,
+            extra: { ticketCode: ticket.code, prize: ticketPrize, details }
+          })));
         }
       }
       return {
@@ -41757,23 +41672,20 @@ var winnerRouter = createRouter({
         });
       }
     }
-    if (winningResults.length > 0) {
-      try {
-        const allUsers = await db.select({ id: lotteryUsers.id, role: lotteryUsers.role }).from(lotteryUsers);
-        const managerIds = allUsers.filter((u) => u.role === "admin" || u.role === "supervisor").map((u) => u.id);
-        for (const w of winningResults) {
-          const recipientIds = Array.from(/* @__PURE__ */ new Set([w.userId, ...managerIds]));
-          await createNotificationForUsers({
-            userIds: recipientIds,
-            ticketId: w.ticketId,
-            type: "ticket_ganador",
-            title: `\xA1Ticket ganador ${w.ticketCode}!`,
-            message: `Premio: $${w.totalPrize.toFixed(2)}. ${w.details.slice(0, 3).join(" \xB7 ")}`,
-            dataExtra: JSON.stringify({ prize: w.totalPrize, details: w.details })
-          });
+    if (winningResults.length) {
+      const managers = await db.select({ id: lotteryUsers.id }).from(lotteryUsers).where(inArray(lotteryUsers.role, ["admin", "supervisor"]));
+      for (const winner of winningResults) {
+        const recipients = [.../* @__PURE__ */ new Set([winner.userId, ...managers.map((m) => m.id)])];
+        if (recipients.length) {
+          await db.insert(notifications).values(recipients.map((userId) => ({
+            userId,
+            ticketId: winner.ticketId,
+            type: "ticket_winner",
+            title: "\xA1Ticket ganador!",
+            message: `El ticket ${winner.ticketCode} obtuvo un premio de $${winner.totalPrize.toFixed(2)}.`,
+            extra: { ticketCode: winner.ticketCode, prize: winner.totalPrize, details: winner.details }
+          })));
         }
-      } catch (err) {
-        console.warn("No se pudieron crear notificaciones de ganadores:", err);
       }
     }
     return { id: winnerId, processed: winningResults.length, winners: winningResults };
@@ -41885,81 +41797,6 @@ var reportRouter = createRouter({
       totalTickets: userTickets.length,
       activeTickets: active.length,
       totalSales: total.toFixed(2)
-    };
-  }),
-  /**
-   * Monitoreo / Contabilidad
-   * Totales por tipo de jugada + detalle por número/combinación
-   * Filtros: rango de fechas y opcionalmente vendedor
-   */
-  monitoring: managerLotteryQuery.input(external_exports.object({
-    fromDate: external_exports.string(),
-    // YYYY-MM-DD
-    toDate: external_exports.string(),
-    userId: external_exports.number().optional()
-    // filtrar por vendedor
-  })).query(async ({ input: input2 }) => {
-    const db = getDb();
-    const from = /* @__PURE__ */ new Date(input2.fromDate + "T00:00:00");
-    const to = /* @__PURE__ */ new Date(input2.toDate + "T23:59:59.999");
-    let ticketRows = await db.select().from(tickets);
-    ticketRows = ticketRows.filter((t2) => {
-      if (t2.status === "cancelled") return false;
-      const d = new Date(t2.createdAt);
-      if (d < from || d > to) return false;
-      if (input2.userId != null && t2.userId !== input2.userId) return false;
-      return true;
-    });
-    const ticketIds = ticketRows.map((t2) => t2.id);
-    const totalTickets = ticketRows.length;
-    const totalSales = ticketRows.reduce((s, t2) => s + Number(t2.total || 0), 0);
-    const totalPrizes = ticketRows.reduce((s, t2) => s + Number(t2.prizeAmount || 0), 0);
-    const totalCommission = ticketRows.reduce((s, t2) => {
-      const total = Number(t2.total || 0);
-      const commissionPct = Number(t2.commission || 10) / 100;
-      return s + total * commissionPct;
-    }, 0);
-    if (ticketIds.length === 0) {
-      return {
-        summary: {
-          totalSales: "0.00",
-          totalTickets: 0,
-          totalCommission: "0.00",
-          totalPrizes: "0.00"
-        },
-        byType: [],
-        byNumber: []
-      };
-    }
-    const allPlays = await db.select().from(plays);
-    const relevantPlays = allPlays.filter((p) => ticketIds.includes(p.ticketId));
-    const typeMap = /* @__PURE__ */ new Map();
-    const numberMap = /* @__PURE__ */ new Map();
-    for (const p of relevantPlays) {
-      const type = p.type || "directo";
-      const num = p.number || "";
-      const amt = Number(p.amount || 0);
-      const tEntry = typeMap.get(type) || { count: 0, amount: 0 };
-      tEntry.count += 1;
-      tEntry.amount += amt;
-      typeMap.set(type, tEntry);
-      const key = `${type}|${num}`;
-      const nEntry = numberMap.get(key) || { type, number: num, count: 0, amount: 0 };
-      nEntry.count += 1;
-      nEntry.amount += amt;
-      numberMap.set(key, nEntry);
-    }
-    const byType = Array.from(typeMap.entries()).map(([type, v]) => ({ type, count: v.count, amount: v.amount.toFixed(2) })).sort((a, b) => b.count - a.count);
-    const byNumber = Array.from(numberMap.values()).map((v) => ({ type: v.type, number: v.number, count: v.count, amount: v.amount.toFixed(2) })).sort((a, b) => b.count - a.count || a.number.localeCompare(b.number));
-    return {
-      summary: {
-        totalSales: totalSales.toFixed(2),
-        totalTickets,
-        totalCommission: totalCommission.toFixed(2),
-        totalPrizes: totalPrizes.toFixed(2)
-      },
-      byType,
-      byNumber
     };
   })
 });
@@ -42192,6 +42029,142 @@ var configRouter = createRouter({
     const existing = (await db.select().from(config2).where(eq(config2.key, input2.key)))[0];
     if (existing) await db.update(config2).set({ value: input2.value }).where(eq(config2.id, existing.id));
     else await db.insert(config2).values({ key: input2.key, value: input2.value });
+    return { ok: true };
+  })
+});
+
+// api/accounting-router.ts
+function dateBounds(from, to) {
+  const start = /* @__PURE__ */ new Date(`${from}T03:00:00.000Z`);
+  const end = /* @__PURE__ */ new Date(`${to}T03:00:00.000Z`);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+}
+var accountingRouter = createRouter({
+  monitoring: managerLotteryQuery.input(external_exports.object({
+    from: external_exports.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+    to: external_exports.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+    userId: external_exports.number().optional(),
+    groupId: external_exports.number().optional(),
+    view: external_exports.enum(["general", "group", "seller"]).default("general")
+  })).query(async ({ input: input2, ctx }) => {
+    if (input2.to < input2.from) throw new TRPCError({ code: "BAD_REQUEST", message: "La fecha final debe ser igual o posterior a la inicial." });
+    const db = getDb();
+    const { start, end } = dateBounds(input2.from, input2.to);
+    const actor = ctx.lotteryUser;
+    const users2 = await db.select().from(lotteryUsers);
+    const groupsRows = await db.select().from(groups);
+    let allowed = users2;
+    if (actor.role === "supervisor" || actor.role === "collector") {
+      allowed = actor.groupId ? users2.filter((u) => u.groupId === actor.groupId) : [];
+    }
+    if (input2.groupId) allowed = allowed.filter((u) => u.groupId === input2.groupId);
+    const sellerOptions = allowed.filter((u) => u.role === "user").map((u) => ({ id: u.id, name: u.name, bankNumber: u.bankNumber, groupId: u.groupId }));
+    if (input2.userId) allowed = allowed.filter((u) => u.id === input2.userId);
+    const ids = allowed.map((u) => u.id);
+    if (!ids.length) return { summary: { sales: 0, tickets: 0, commissions: 0, prizes: 0 }, byType: [], details: [], bySeller: [], byGroup: [], sellers: sellerOptions, groups: groupsRows };
+    const rows = await db.select().from(tickets).where(and(gte(tickets.createdAt, start), lt(tickets.createdAt, end), inArray(tickets.userId, ids)));
+    const valid = rows.filter((t2) => t2.status !== "cancelled");
+    const ticketIds = valid.map((t2) => t2.id);
+    const playRows = ticketIds.length ? await db.select().from(plays).where(inArray(plays.ticketId, ticketIds)) : [];
+    const byTypeMap = /* @__PURE__ */ new Map([
+      ["directo", { type: "directo", count: 0, amount: 0 }],
+      ["pale", { type: "pale", count: 0, amount: 0 }],
+      ["tripleta", { type: "tripleta", count: 0, amount: 0 }],
+      ["tres_cifras", { type: "tres_cifras", count: 0, amount: 0 }],
+      ["cuatro_cifras", { type: "cuatro_cifras", count: 0, amount: 0 }]
+    ]);
+    const detailMap = /* @__PURE__ */ new Map();
+    const userMapForTickets = new Map(allowed.map((u) => [u.id, u]));
+    const ticketSellerMap = new Map(valid.map((ticket) => [ticket.id, userMapForTickets.get(ticket.userId)]));
+    for (const play of playRows) {
+      const type = play.type === "terna" ? "tres_cifras" : play.type === "cuatrena" ? "cuatro_cifras" : play.type;
+      const b = byTypeMap.get(type) || { type, count: 0, amount: 0 };
+      b.count += 1;
+      b.amount += Number(play.amount);
+      byTypeMap.set(type, b);
+      const digits = play.number.replace(/[^0-9]/g, "");
+      const chunks = play.type === "pale" ? digits.match(/.{1,2}/g) : play.type === "tripleta" ? digits.match(/.{1,2}/g) : null;
+      const number4 = chunks ? chunks.join("-") : digits;
+      const seller = ticketSellerMap.get(play.ticketId);
+      if (!seller) continue;
+      const key = `${type}|${number4}|${seller.id}`;
+      const d = detailMap.get(key) || { type, number: number4, userId: seller.id, sellerName: seller.name, bankNumber: seller.bankNumber, count: 0, amount: 0 };
+      d.count += 1;
+      d.amount += Number(play.amount);
+      detailMap.set(key, d);
+    }
+    const sales = valid.reduce((s, t2) => s + Number(t2.total), 0);
+    const commissions = valid.reduce((s, t2) => s + Math.max(0, Number(t2.total) - Number(t2.netDeduction)), 0);
+    const prizes2 = valid.reduce((s, t2) => s + Number(t2.prizeAmount || 0), 0);
+    const bySellerMap = /* @__PURE__ */ new Map();
+    const userMap = new Map(allowed.map((u) => [u.id, u]));
+    const byGroupMap = /* @__PURE__ */ new Map();
+    for (const ticket of valid) {
+      const seller = userMap.get(ticket.userId);
+      if (!seller) continue;
+      const sellerRow = bySellerMap.get(seller.id) || { userId: seller.id, name: seller.name, bankNumber: seller.bankNumber, tickets: 0, sales: 0, commissions: 0, prizes: 0 };
+      sellerRow.tickets += 1;
+      sellerRow.sales += Number(ticket.total);
+      sellerRow.commissions += Math.max(0, Number(ticket.total) - Number(ticket.netDeduction));
+      sellerRow.prizes += Number(ticket.prizeAmount || 0);
+      bySellerMap.set(seller.id, sellerRow);
+      if (seller.groupId) {
+        const group = groupsRows.find((g) => g.id === seller.groupId);
+        const groupRow = byGroupMap.get(seller.groupId) || { groupId: seller.groupId, name: group?.name || `Grupo ${seller.groupId}`, tickets: 0, sales: 0, commissions: 0, prizes: 0 };
+        groupRow.tickets += 1;
+        groupRow.sales += Number(ticket.total);
+        groupRow.commissions += Math.max(0, Number(ticket.total) - Number(ticket.netDeduction));
+        groupRow.prizes += Number(ticket.prizeAmount || 0);
+        byGroupMap.set(seller.groupId, groupRow);
+      }
+    }
+    return {
+      summary: { sales, tickets: valid.length, commissions, prizes: prizes2 },
+      byType: [...byTypeMap.values()].sort((a, b) => a.type.localeCompare(b.type)),
+      details: [...detailMap.values()],
+      bySeller: [...bySellerMap.values()].sort((a, b) => b.sales - a.sales),
+      byGroup: [...byGroupMap.values()].sort((a, b) => b.sales - a.sales),
+      sellers: sellerOptions,
+      groups: groupsRows
+    };
+  }),
+  tickets: managerLotteryQuery.input(external_exports.object({
+    from: external_exports.string(),
+    to: external_exports.string(),
+    userId: external_exports.number().optional(),
+    status: external_exports.enum(["all", "active", "cancelled", "winner", "paid"]).default("all"),
+    search: external_exports.string().optional()
+  })).query(async ({ input: input2, ctx }) => {
+    const db = getDb();
+    const { start, end } = dateBounds(input2.from, input2.to);
+    let rows = await db.select().from(tickets).where(and(gte(tickets.createdAt, start), lt(tickets.createdAt, end))).orderBy(desc(tickets.createdAt));
+    const actor = ctx.lotteryUser;
+    if (actor.role !== "admin") {
+      const groupRows = actor.groupId ? await db.select({ id: lotteryUsers.id }).from(lotteryUsers).where(eq(lotteryUsers.groupId, actor.groupId)) : [];
+      const ids = groupRows.map((r) => r.id);
+      rows = rows.filter((t2) => ids.includes(t2.userId));
+    }
+    if (input2.userId) rows = rows.filter((t2) => t2.userId === input2.userId);
+    if (input2.status !== "all") rows = rows.filter((t2) => t2.status === input2.status);
+    if (input2.search) rows = rows.filter((t2) => t2.code.toLowerCase().includes(input2.search.toLowerCase()));
+    const users2 = await db.select().from(lotteryUsers);
+    const userMap = new Map(users2.map((u) => [u.id, u]));
+    return rows.map((t2) => ({ ...t2, sellerName: userMap.get(t2.userId)?.name || "\u2014", sellerCode: userMap.get(t2.userId)?.bankNumber || "\u2014" }));
+  }),
+  notificationList: lotteryAuthedQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    return db.select().from(notifications).where(eq(notifications.userId, ctx.lotteryUser.id)).orderBy(desc(notifications.createdAt)).limit(100);
+  }),
+  unreadCount: lotteryAuthedQuery.query(async ({ ctx }) => {
+    const db = getDb();
+    const rows = await db.select().from(notifications).where(and(eq(notifications.userId, ctx.lotteryUser.id), eq(notifications.read, false)));
+    return rows.length;
+  }),
+  markRead: lotteryAuthedQuery.input(external_exports.object({ id: external_exports.number().optional(), all: external_exports.boolean().default(false) })).mutation(async ({ input: input2, ctx }) => {
+    const db = getDb();
+    if (input2.all) await db.update(notifications).set({ read: true, readAt: /* @__PURE__ */ new Date() }).where(eq(notifications.userId, ctx.lotteryUser.id));
+    else if (input2.id) await db.update(notifications).set({ read: true, readAt: /* @__PURE__ */ new Date() }).where(and(eq(notifications.id, input2.id), eq(notifications.userId, ctx.lotteryUser.id)));
     return { ok: true };
   })
 });
@@ -42461,7 +42434,7 @@ var resultsRouter = createRouter({
         })
       ).min(1)
     })
-  ).mutation(async ({ input: input2, ctx }) => {
+  ).mutation(async ({ input: input2 }) => {
     const db = getDb();
     const drawDate = drawDateYmd(input2.date);
     const imported = [];
@@ -42616,8 +42589,8 @@ var appRouter = createRouter({
   prize: prizeRouter,
   sync: syncRouter,
   config: configRouter,
-  results: resultsRouter,
-  notification: notificationRouter
+  accounting: accountingRouter,
+  results: resultsRouter
 });
 
 // node_modules/hono/dist/utils/cookie.js

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createRouter, lotteryAuthedQuery, managerLotteryQuery } from "./middleware";
 import { getDb } from "./queries/connection";
-import { tickets, plays, lotteryUsers, config, playLimits, lotteries } from "@db/schema";
+import { tickets, plays, lotteryUsers, config, playLimits, lotteries, notifications } from "@db/schema";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
@@ -230,11 +230,7 @@ export const ticketRouter = createRouter({
     }),
 
   annul: lotteryAuthedQuery
-    .input(z.object({
-      id: z.number(),
-      annulledBy: z.number(),
-      reason: z.string().min(3, "El motivo de anulación es obligatorio (mínimo 3 caracteres)"),
-    }))
+    .input(z.object({ id: z.number(), annulledBy: z.number().optional(), reason: z.string().trim().min(3, "Indique el motivo de anulación.").max(500) }))
     .mutation(async ({ input, ctx }) => {
       const db = getDb();
       const rows = await db.select().from(tickets).where(eq(tickets.id, input.id));
@@ -242,15 +238,15 @@ export const ticketRouter = createRouter({
       if (!ticket) throw new TRPCError({ code: "NOT_FOUND", message: "Ticket no encontrado." });
       if (ticket.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: "El ticket ya no está activo." });
 
-      const reason = (input.reason || "").trim();
-      if (reason.length < 3) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "El motivo de anulación es obligatorio." });
-      }
-
       const isManager = ["admin", "supervisor"].includes(ctx.lotteryUser!.role);
       if (isManager) {
-        if (ctx.lotteryUser!.role === "supervisor" && ticket.userId !== input.annulledBy) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "No puede anular tickets de otro vendedor." });
+        if (ctx.lotteryUser!.role === "supervisor") {
+          const groupRows = ctx.lotteryUser!.groupId
+            ? await db.select({ id: lotteryUsers.id }).from(lotteryUsers).where(eq(lotteryUsers.groupId, ctx.lotteryUser!.groupId))
+            : [];
+          if (!groupRows.some(row => row.id === ticket.userId)) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "No puede anular tickets fuera de su grupo." });
+          }
         }
       } else {
         if (ticket.userId !== ctx.lotteryUser!.id) {
@@ -268,12 +264,15 @@ export const ticketRouter = createRouter({
       }
 
       await db.transaction(async tx => {
-        await tx.update(tickets).set({
-          status: "cancelled",
-          annulledBy: ctx.lotteryUser!.id,
-          annulledAt: new Date(),
-          annulReason: reason,
-        }).where(eq(tickets.id, input.id));
+        await tx.update(tickets).set({ status: "cancelled", annulledBy: ctx.lotteryUser!.id, annulledAt: new Date(), annulReason: input.reason }).where(eq(tickets.id, input.id));
+        const managerRows = await tx.select({ id: lotteryUsers.id }).from(lotteryUsers)
+          .where(inArray(lotteryUsers.role, ["admin", "supervisor"]));
+        const recipients = [...new Set([ticket.userId, ...managerRows.map(m => m.id)])];
+        await tx.insert(notifications).values(recipients.map(userId => ({
+          userId, ticketId: ticket.id, type: "ticket_annulled",
+          title: "Ticket anulado", message: `El ticket ${ticket.code} fue anulado. Motivo: ${input.reason}`,
+          extra: { ticketCode: ticket.code, reason: input.reason },
+        })));
         const sellerRows = await tx.select().from(lotteryUsers).where(eq(lotteryUsers.id, ticket.userId));
         if (sellerRows[0]) {
           const restored = Number(sellerRows[0].credit) + Number(ticket.netDeduction);

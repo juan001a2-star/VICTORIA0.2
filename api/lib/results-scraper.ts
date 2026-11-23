@@ -33,6 +33,8 @@ export const LOTTERY_ALIASES: Record<string, string[]> = {
   "Florida Noche": ["florida noche", "florida evening", "florida night"],
   "New Jersey Dia": ["new jersey dia", "new jersey día", "nj mid-day", "jersey mid"],
   "New Jersey Noche": ["new jersey noche", "nj evening", "jersey evening"],
+  "New York Tarde": ["new york tarde", "new york dia", "new york día", "ny midday", "new york midday", "new york mid-day"],
+  "New York Noche": ["new york noche", "ny evening", "new york evening", "new york night"],
   "Georgia Dia": ["georgia dia", "georgia día", "georgia mid-day"],
   "Georgia Tarde": ["georgia tarde", "georgia evening", "georgia night"],
   "Primera Día": ["primera dia", "primera día", "la primera dia", "quiniela la primera"],
@@ -79,10 +81,16 @@ function matchSystemName(sourceLabel: string): string | null {
 }
 
 function todayISO(): string {
-  const d = new Date();
-  // America/Santo_Domingo ≈ UTC-4
-  const local = new Date(d.getTime() - 4 * 60 * 60 * 1000);
-  return local.toISOString().slice(0, 10);
+  // Fecha de operación del importador: República Dominicana.
+  // Intl maneja correctamente el huso horario sin offsets fijos.
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Santo_Domingo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 function parseDateFromText(text: string): string | null {
@@ -96,17 +104,6 @@ function parseDateFromText(text: string): string | null {
   const m2 = text.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (m2) return m2[0];
   return null;
-}
-
-/** Extrae trios de números (00-99) de un bloque de texto */
-function extractTriple(text: string): [string, string, string] | null {
-  const nums = text.match(/\b\d{1,2}\b/g);
-  if (!nums || nums.length < 3) return null;
-  const a = pad2(nums[0]);
-  const b = pad2(nums[1]);
-  const c = pad2(nums[2]);
-  if (!a || !b || !c) return null;
-  return [a, b, c];
 }
 
 /**
@@ -179,11 +176,35 @@ async function fetchText(url: string, timeoutMs = 12000): Promise<string> {
   }
 }
 
+const REFERENCE_HOME_URL = "https://www.conectate.com.do/";
+const REFERENCE_LOTTERIES_URL = "https://www.conectate.com.do/loterias/";
+
 const SOURCES = [
   "https://loterias.do/",
   "https://loterias.do/leidsa/",
   "https://www.nacionalloteria.com/republica-dominicana/resultados-leidsa.php",
+  // Índice de resultados de Conectate; también descubre páginas individuales.
+  REFERENCE_LOTTERIES_URL,
 ];
+
+/** Extrae enlaces a páginas individuales de loterías desde el directorio Conectate. */
+function extractConectateLotteryLinks(html: string): Array<{ systemName: string; url: string }> {
+  const found = new Map<string, string>();
+  const anchorRe = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = anchorRe.exec(html))) {
+    const href = match[1].replace(/&amp;/g, "&");
+    const label = match[2].replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").trim();
+    let url: URL;
+    try { url = new URL(href, REFERENCE_LOTTERIES_URL); } catch { continue; }
+    if (!/(^|\.)conectate\.com\.do$/i.test(url.hostname)) continue;
+    if (!url.pathname.toLowerCase().includes("loterias") && !url.hostname.toLowerCase().startsWith("loterias.")) continue;
+    const systemName = matchSystemName(`${label} ${url.pathname.replace(/[\/-]+/g, " ")}`);
+    if (!systemName || found.has(systemName)) continue;
+    found.set(systemName, url.toString());
+  }
+  return Array.from(found, ([systemName, url]) => ({ systemName, url }));
+}
 
 /**
  * Obtiene resultados de todas las fuentes configuradas.
@@ -196,20 +217,48 @@ export async function scrapeAllResults(opts?: {
   const errors: string[] = [];
   const bySystem = new Map<string, ScrapedResult>();
 
+  const conectateLinks: Array<{ systemName: string; url: string }> = [];
   for (const url of SOURCES) {
     try {
       const html = await fetchText(url);
-      const parsed = parseGenericHtml(html, url);
+      // El índice de Conectate sirve para descubrir enlaces, no para extraer
+      // premios: sus horarios y textos podrían confundirse con números ganadores.
+      const parsed = url === REFERENCE_LOTTERIES_URL ? [] : parseGenericHtml(html, url);
       for (const r of parsed) {
         if (opts?.onlySystemNames && !opts.onlySystemNames.includes(r.systemName)) continue;
-        // Preferir primera aparición (fuentes en orden de prioridad)
         if (!bySystem.has(r.systemName)) {
           if (opts?.date) r.date = opts.date;
           bySystem.set(r.systemName, r);
         }
       }
+      if (url === REFERENCE_LOTTERIES_URL) conectateLinks.push(...extractConectateLotteryLinks(html));
     } catch (e: any) {
       errors.push(`${url}: ${e?.message || String(e)}`);
+    }
+  }
+
+  // La portada solo se usa para descubrir enlaces; no se parsea como resultados.
+  try {
+    const homeHtml = await fetchText(REFERENCE_HOME_URL);
+    conectateLinks.push(...extractConectateLotteryLinks(homeHtml));
+  } catch (e: any) {
+    errors.push(`${REFERENCE_HOME_URL} (índice): ${e?.message || String(e)}`);
+  }
+
+  const uniqueConectateLinks = Array.from(new Map(conectateLinks.map((item) => [item.systemName, item])).values());
+  for (const item of uniqueConectateLinks) {
+    if (opts?.onlySystemNames && !opts.onlySystemNames.includes(item.systemName)) continue;
+    if (bySystem.has(item.systemName)) continue;
+    try {
+      const html = await fetchText(item.url);
+      const parsed = parseGenericHtml(html, item.url);
+      const result = parsed.find((r) => r.systemName === item.systemName);
+      if (result) {
+        if (opts?.date) result.date = opts.date;
+        bySystem.set(result.systemName, result);
+      }
+    } catch (e: any) {
+      errors.push(`${item.systemName} (${item.url}): ${e?.message || String(e)}`);
     }
   }
 
@@ -237,8 +286,8 @@ export async function scrapeAllResults(opts?: {
 }
 
 /**
- * Playwright opcional: solo si está instalado `playwright` en node_modules.
- * No es dependencia obligatoria; si no está, se ignora en silencio.
+ * Playwright instalado en el contenedor Docker de producción.
+ * Se conserva la captura de errores para que el panel muestre fallos por fuente.
  */
 async function scrapeWithPlaywrightOptional(
   systemNames: string[]
@@ -249,14 +298,23 @@ async function scrapeWithPlaywrightOptional(
   try {
     // @ts-ignore optional dependency
     playwright = await import("playwright");
-  } catch {
-    return { results, errors: ["Playwright no instalado (opcional). Usa: npm i playwright && npx playwright install chromium"] };
+  } catch (e: any) {
+    return {
+      results,
+      errors: [`Playwright no disponible: ${e?.message || String(e)}. Verifica la instalación durante el build de Docker.`],
+    };
   }
 
   const browser = await playwright.chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    const urls = ["https://loterias.do/", "https://www.leidsa.com/"];
+    const urls = [
+      "https://loterias.do/",
+      "https://www.leidsa.com/",
+      REFERENCE_LOTTERIES_URL,
+      "https://www.conectate.com.do/loterias/americanas/new-york-medio-dia/",
+      "https://www.conectate.com.do/loterias/americanas/new-york-noche/",
+    ];
     for (const url of urls) {
       try {
         await page.goto(url, { waitUntil: "networkidle", timeout: 20000 });

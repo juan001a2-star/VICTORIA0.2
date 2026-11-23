@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import type { SessionUser } from "@/store"
 import { formatMoney } from "@/store";
-import { Calendar, Filter, BarChart3, Receipt, DollarSign, Wallet, TrendingUp, TrendingDown } from "lucide-react";
+import { Calendar, Filter, Receipt, DollarSign, Wallet, TrendingUp, TrendingDown } from "lucide-react";
 import { trpc } from "@/providers/trpc";
 import { t } from "@/i18n";
 
@@ -105,10 +105,6 @@ export default function ReportesScreen({ user, viewUser, onClose }: ReportesScre
     .filter((r: any) => r.type === "deposit")
     .reduce((s: number, r: any) => s + Number(r.amount), 0);
 
-  // Ganancia/pérdida aproximada del periodo:
-  // neto contable = cobros de venta - premios pagados (ajustes de crédito)
-  // + comisiones retenidas como referencia
-  const totalPerdidaGanancia = cobroVentas - premiosPagados;
   // Alternativa más completa: ventas netas - premios
   const netaVentas = ticketsInRange.reduce((sum: number, t: any) => sum + Number(t.netDeduction), 0);
   const resultadoOperativo = netaVentas - premiosPagados;

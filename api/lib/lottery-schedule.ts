@@ -145,12 +145,6 @@ export function lotteriesDueForResults(
   now = new Date()
 ): DueLottery[] {
   const current = getNewYorkParts(now);
-  const currentDate = dateKey(
-    current.year,
-    current.month,
-    current.day
-  );
-
   const results: DueLottery[] = [];
 
   for (const lottery of lotteries) {

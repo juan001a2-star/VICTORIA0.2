@@ -8,6 +8,7 @@ import {
   boolean,
   bigint,
   decimal,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 // ── AUTH USERS (from Kimi OAuth) ──────────────────────────────────────
@@ -83,13 +84,12 @@ export const tickets = pgTable("tickets", {
   total: decimal("total", { precision: 10, scale: 2 }).default("0.00").notNull(),
   commission: decimal("commission", { precision: 5, scale: 2 }).default("10.00").notNull(),
   netDeduction: decimal("net_deduction", { precision: 10, scale: 2 }).default("0.00").notNull(),
-  status: varchar("status", { length: 20 }).default("active").notNull(), // active | cancelled | winner | paid | loser
+  status: varchar("status", { length: 20 }).default("active").notNull(),
   annulledBy: bigint("annulled_by", { mode: "number" }).references(() => lotteryUsers.id),
   annulledAt: timestamp("annulled_at"),
-  annulReason: text("annul_reason"), // motivo obligatorio al anular (Contabilidad/Monitoreo)
+  annulReason: text("annul_reason"),
   winnerId: bigint("winner_id", { mode: "number" }).references(() => winners.id),
   prizeAmount: decimal("prize_amount", { precision: 12, scale: 2 }),
-  processedAt: timestamp("processed_at"), // fecha en que se procesó el sorteo
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -101,23 +101,7 @@ export const plays = pgTable("plays", {
   amount: decimal("amount", { precision: 10, scale: 2 }).default("0.00").notNull(),
   type: varchar("play_type", { length: 20 }).default("directo").notNull(),
   lotteryId: bigint("lottery_id", { mode: "number" }).notNull().references(() => lotteries.id),
-  isWinner: boolean("is_winner").default(false).notNull(),
-  prize: decimal("prize", { precision: 12, scale: 2 }).default("0.00"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// ── NOTIFICATIONS (tickets ganadores, anulados, sistema) ──────────────
-export const notifications = pgTable("notifications", {
-  id: serial("id").primaryKey(),
-  userId: bigint("user_id", { mode: "number" }).notNull().references(() => lotteryUsers.id),
-  ticketId: bigint("ticket_id", { mode: "number" }).references(() => tickets.id),
-  type: varchar("type", { length: 30 }).notNull(), // ticket_ganador | ticket_anulado | sistema
-  title: varchar("title", { length: 150 }).notNull(),
-  message: text("message").notNull(),
-  read: boolean("read").default(false).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  readAt: timestamp("read_at"),
-  dataExtra: text("data_extra"), // JSON string opcional
 });
 
 // ── WINNERS (draw results) ────────────────────────────────────────────
@@ -192,4 +176,19 @@ export type Config = typeof config.$inferSelect;
 export type Prize = typeof prizes.$inferSelect;
 export type PlayLimit = typeof playLimits.$inferSelect;
 export type CreditAdjustment = typeof creditAdjustments.$inferSelect;
+
+
+// ── NOTIFICATIONS (tickets and system events) ────────────────────────
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => lotteryUsers.id, { onDelete: "cascade" }),
+  ticketId: integer("ticket_id").references(() => tickets.id, { onDelete: "set null" }),
+  type: varchar("type", { length: 30 }).notNull(),
+  title: varchar("title", { length: 150 }).notNull(),
+  message: text("message").notNull(),
+  read: boolean("read").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  readAt: timestamp("read_at"),
+  extra: jsonb("extra"),
+});
 export type Notification = typeof notifications.$inferSelect;

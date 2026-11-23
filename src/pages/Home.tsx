@@ -12,12 +12,9 @@ import TicketsScreen from "@/sections/TicketsScreen"
 import SorteosScreen from "@/sections/SorteosScreen"
 import AdminPanel from "@/sections/AdminPanel"
 import SettingsScreen from "@/sections/SettingsScreen"
-import MonitoreoScreen from "@/sections/MonitoreoScreen"
-import NotificacionesScreen from "@/sections/NotificacionesScreen"
-import NotificationBell from "@/components/NotificationBell"
 import { Loader2, Wifi, WifiOff } from "lucide-react"
 
-export type Screen = "login" | "vender" | "balance" | "reportes" | "tickets" | "sorteos" | "admin" | "settings" | "monitoreo" | "notificaciones";
+export type Screen = "login" | "vender" | "balance" | "reportes" | "tickets" | "sorteos" | "admin" | "settings";
 
 export default function Home() {
   const [screen, setScreen] = useState<Screen>("login");
@@ -99,16 +96,13 @@ export default function Home() {
             );
           })()}
         </div>
-        <div className="flex items-center gap-1 min-w-[90px] justify-end">
-          <NotificationBell onOpen={() => setScreen("notificaciones")} />
-          <div className="text-right">
-            <div className="flex items-center justify-end gap-1">
-              {isOnline ? <Wifi size={10} className="text-green-300" /> : <WifiOff size={10} className="text-yellow-300" />}
-              <p className="text-[10px] text-green-100">{isOnline ? "Online" : "Offline"}</p>
-            </div>
-            <p className="text-[10px] text-green-100">Banca {sessionUser.bankNumber}</p>
-            <p className="text-sm font-bold">${formatMoney(sessionUser.credit)}</p>
+        <div className="text-right min-w-[80px]">
+          <div className="flex items-center justify-end gap-1">
+            {isOnline ? <Wifi size={10} className="text-green-300" /> : <WifiOff size={10} className="text-yellow-300" />}
+            <p className="text-[10px] text-green-100">{isOnline ? "Online" : "Offline"}</p>
           </div>
+          <p className="text-[10px] text-green-100">Banca {sessionUser.bankNumber}</p>
+          <p className="text-sm font-bold">${formatMoney(sessionUser.credit)}</p>
         </div>
       </header>
 
@@ -137,7 +131,7 @@ export default function Home() {
         {screen === "reportes" && (
           <ReportesScreen user={sessionUser} />
         )}
-        {screen === "tickets" && (
+        {screen === "tickets" && sessionUser.role === "user" && (
           <TicketsScreen user={sessionUser} onGoVender={() => setScreen("vender")} />
         )}
         {screen === "sorteos" && (
@@ -148,16 +142,6 @@ export default function Home() {
         )}
         {screen === "settings" && (
           <SettingsScreen user={sessionUser} onLanguageChange={(lang) => setSessionUser((u: any) => u ? { ...u, language: lang } : u)} />
-        )}
-        {screen === "monitoreo" && (sessionUser.role === "admin" || sessionUser.role === "supervisor") && (
-          <MonitoreoScreen user={sessionUser} />
-        )}
-        {screen === "notificaciones" && (
-          <NotificacionesScreen
-            user={sessionUser}
-            onBack={() => setScreen(sessionUser.role === "user" ? "vender" : "admin")}
-            onOpenTicket={() => setScreen("tickets")}
-          />
         )}
       </main>
 

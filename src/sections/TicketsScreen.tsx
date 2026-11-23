@@ -2,10 +2,10 @@ import { useState } from "react";
 import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 import type { SessionUser } from "@/store"
-import { formatMoney, logAudit, calculateNetDeduction, displayNumber, formatTicketShareText, PENDING_COPY_KEY } from "@/store";
+import { formatMoney, logAudit, displayNumber, formatTicketShareText, PENDING_COPY_KEY } from "@/store";
 import { trpc } from "@/providers/trpc";
 import { getLotteryLocalClock } from "@/lib/lottery-time";
-import { Receipt, Search, X, ChevronRight, Ban, Share2, Clock, FileText, Copy, QrCode, CheckCircle } from "lucide-react";
+import { Receipt, Search, X, ChevronRight, Ban, Share2, Clock, FileText, Copy, CheckCircle } from "lucide-react";
 import { t } from "@/i18n";
 
 interface TicketsScreenProps {
@@ -60,9 +60,6 @@ export default function TicketsScreen({ user, onGoVender }: TicketsScreenProps) 
   const today = todayStr();
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const ticketsOpenPref = (() => {
-    try { return localStorage.getItem("bv_tickets_filter") || "open"; } catch { return "open"; }
-  })();
   const [filterUser, setFilterUser] = useState("");
   // Por defecto solo tickets del día actual
   const [fromDate, setFromDate] = useState(today);
@@ -97,10 +94,6 @@ export default function TicketsScreen({ user, onGoVender }: TicketsScreenProps) 
     { id: selectedTicket?.id || 0 },
     { enabled: !!selectedTicket }
   );
-  const ticketByCode = trpc.ticket.byCode.useQuery(
-    { code: copyCode },
-    { enabled: false }
-  );
   const validateTicket = trpc.ticket.validate.useQuery(
     { code: validateCode },
     { enabled: false }
@@ -124,6 +117,8 @@ export default function TicketsScreen({ user, onGoVender }: TicketsScreenProps) 
   const lotteries = trpcLotteries.data || [];
 
   const annulTicket = async (ticket: any) => {
+    const reason = window.prompt(`Motivo obligatorio para anular ${ticket.code}:`);
+    if (!reason || reason.trim().length < 3) { setMsg("Debe indicar un motivo de al menos 3 caracteres."); setTimeout(() => setMsg(""), 3000); return; }
     if (!isAdmin) {
       const { canAnnul, timeLeft } = getTimeElapsed(ticket.createdAt);
       if (!canAnnul) { setMsg("Solo puedes anular dentro de 5 minutos"); setTimeout(() => setMsg(""), 3000); return; }
@@ -134,25 +129,11 @@ export default function TicketsScreen({ user, onGoVender }: TicketsScreenProps) 
       if (!confirm("Anular este ticket?")) return;
     }
 
-    // Motivo de anulación obligatorio (módulo Contabilidad / Monitoreo)
-    const reason = (prompt("Motivo de anulación (obligatorio):") || "").trim();
-    if (reason.length < 3) {
-      setMsg("Debe indicar un motivo de anulación (mínimo 3 caracteres).");
-      setTimeout(() => setMsg(""), 3000);
-      return;
-    }
-
-    // Calculate what was actually deducted from seller's credit (total - commission)
-    const total = Number(ticket.total) || 0;
-    const commission = Number(ticket.commission || 0);
-    const netDeduction = calculateNetDeduction(total, commission);
-    const commissionKept = total - netDeduction;
-
     try {
-      // Annul ticket via API (incluye motivo)
-      await annulTicketMut.mutateAsync({ id: ticket.id, annulledBy: user.id, reason });
+      // Annul ticket via API
+      await annulTicketMut.mutateAsync({ id: ticket.id, annulledBy: user.id, reason: reason.trim() });
 
-      logAudit({ type: "ticket_annul", userId: ticket.userId, userName: ticket.seller || "", groupId: user.groupId, amount: Number(ticket.total) || 0, description: `Ticket anulado: ${ticket.code} — Motivo: ${reason}`, ticketCode: ticket.code });
+      logAudit({ type: "ticket_annul", userId: ticket.userId, userName: ticket.seller || "", groupId: user.groupId, amount: Number(ticket.total) || 0, description: `Ticket anulado: ${ticket.code}`, ticketCode: ticket.code });
 
       setSelectedTicket(null);
       utils.ticket.list.invalidate();
@@ -162,24 +143,6 @@ export default function TicketsScreen({ user, onGoVender }: TicketsScreenProps) 
       setMsg("Error al anular: " + (err.message || "Intente de nuevo"));
       setTimeout(() => setMsg(""), 3000);
     }
-  };
-
-  const downloadTicketPDF = (ticket: any) => {
-    if (ticket.pdfDataUrl) {
-      window.open(ticket.pdfDataUrl, "_blank");
-    } else {
-      setMsg("PDF no disponible");
-      setTimeout(() => setMsg(""), 2000);
-    }
-  };
-
-  const shareWhatsApp = (ticket: any) => {
-    const lines = (ticket.plays || []).map((p: any) => `${displayNumber(p.number)} - ${p.type.toUpperCase()} - $${formatMoney(p.amount)}`).join("\n");
-    const groupName = ticket.groupName || "";
-    const appName = groupName || "BANCA VICTORIA";
-    const subLine = groupName ? "\n_Banca Victoria_" : "";
-    const text = `*${appName}*${subLine}\nTicket: *${ticket.code}*\nFecha: ${ticket.date || new Date(ticket.createdAt).toLocaleDateString()}\nHora: ${ticket.time || new Date(ticket.createdAt).toLocaleTimeString()}\nTerminal: ${ticket.terminal}\nLoteria: ${ticket.lottery}\n\n*JUGADAS:*\n${lines}\n\n*Total: $${formatMoney(ticket.total)}*`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
   };
 
   const getSellerName = (userId: number) => {
@@ -805,17 +768,9 @@ export default function TicketsScreen({ user, onGoVender }: TicketsScreenProps) 
                     <span className="font-medium text-gray-900">{getGroupName()}</span>
                   </div>
                   {selectedTicket.status === "cancelled" && selectedTicket.annulledBy && (
-                    <div className="col-span-2 space-y-1">
-                      <div>
-                        <span className="text-gray-500 block">{t(lang, "tickets_annulled_by")}</span>
-                        <span className="font-medium text-red-600">{getSellerName(selectedTicket.annulledBy)}</span>
-                      </div>
-                      {selectedTicket.annulReason && (
-                        <div>
-                          <span className="text-gray-500 block">Motivo de anulación</span>
-                          <span className="font-medium text-red-700">{selectedTicket.annulReason}</span>
-                        </div>
-                      )}
+                    <div className="col-span-2">
+                      <span className="text-gray-500 block">{t(lang, "tickets_annulled_by")}</span>
+                      <span className="font-medium text-red-600">{getSellerName(selectedTicket.annulledBy)}</span>
                     </div>
                   )}
                 </div>

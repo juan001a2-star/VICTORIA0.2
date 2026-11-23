@@ -27,24 +27,21 @@ async function main() {
     `ALTER TABLE lottery_users ADD COLUMN IF NOT EXISTS bound_device_label varchar(120)`,
     `ALTER TABLE lottery_users ADD COLUMN IF NOT EXISTS bound_at timestamp`,
     `ALTER TABLE lottery_users ADD COLUMN IF NOT EXISTS language varchar(5) DEFAULT 'es'`,
-    // Contabilidad / Monitoreo / Tickets / Notificaciones (v50+)
     `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS annul_reason text`,
-    `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS processed_at timestamp`,
-    `ALTER TABLE plays ADD COLUMN IF NOT EXISTS is_winner boolean NOT NULL DEFAULT false`,
-    `ALTER TABLE plays ADD COLUMN IF NOT EXISTS prize numeric(12,2) DEFAULT 0`,
     `CREATE TABLE IF NOT EXISTS notifications (
       id serial PRIMARY KEY,
-      user_id bigint NOT NULL REFERENCES lottery_users(id) ON DELETE CASCADE,
-      ticket_id bigint REFERENCES tickets(id) ON DELETE SET NULL,
+      user_id INTEGER NOT NULL REFERENCES lottery_users(id) ON DELETE CASCADE,
+      ticket_id INTEGER REFERENCES tickets(id) ON DELETE SET NULL,
       type varchar(30) NOT NULL,
       title varchar(150) NOT NULL,
       message text NOT NULL,
       read boolean NOT NULL DEFAULT false,
       created_at timestamp NOT NULL DEFAULT NOW(),
       read_at timestamp,
-      data_extra text
+      extra jsonb
     )`,
-    `CREATE INDEX IF NOT EXISTS idx_notif_user_read ON notifications(user_id, read)`,
+    `CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, read)`,
+    `CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC)`,
   ];
 
   for (const sql of statements) {

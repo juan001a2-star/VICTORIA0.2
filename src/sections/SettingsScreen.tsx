@@ -1,20 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Bell, Palette, Image, Lock, Fingerprint, Ticket, Globe,
-  ChevronRight, ChevronDown, Check, X, Volume2
+  ChevronRight, ChevronDown, Check, X
 } from "lucide-react";
 import type { SessionUser } from "@/store";
 import { trpc } from "@/providers/trpc";
 import { LANG_NAMES, t, type Lang } from "@/i18n";
-import {
-  NOTIF_SOUNDS,
-  getPreferredSound,
-  setPreferredSound,
-  isSoundEnabled,
-  setSoundEnabled,
-  previewSound,
-  type NotifSoundId,
-} from "@/lib/notification-sounds";
 
 interface SettingsScreenProps {
   user: SessionUser;
@@ -105,8 +96,6 @@ export default function SettingsScreen({ user, onLanguageChange }: SettingsScree
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotifPrefs>(() => loadJson(NOTIF_KEY, defaultNotifs));
-  const [soundId, setSoundId] = useState<NotifSoundId>(() => getPreferredSound());
-  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [ticketsFilter, setTicketsFilter] = useState<"img" | "pdf">(() => {
     try {
       const v = localStorage.getItem(TICKETS_FILTER_KEY) || "pdf";
@@ -370,54 +359,6 @@ export default function SettingsScreen({ user, onLanguageChange }: SettingsScree
               <span className="text-gray-700">{t(lang, "settings_notif_update")}</span>
               <input type="checkbox" checked={notifications.updateAvailable} onChange={() => toggleNotif("updateAvailable")} className="w-5 h-5 accent-green-600" disabled={!notifications.enabled} />
             </label>
-
-            {/* Sonido de notificación */}
-            <div className="pt-2 border-t border-gray-100 space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-                <Volume2 size={16} className="text-[var(--bv-primary)]" />
-                Sonido de notificación
-              </div>
-              <label className="flex items-center justify-between text-sm">
-                <span className="text-gray-700">Reproducir sonido</span>
-                <input
-                  type="checkbox"
-                  checked={soundOn}
-                  onChange={() => {
-                    const next = !soundOn;
-                    setSoundOn(next);
-                    setSoundEnabled(next);
-                  }}
-                  className="w-5 h-5 accent-green-600"
-                  disabled={!notifications.enabled}
-                />
-              </label>
-              <p className="text-[11px] text-gray-500 leading-snug">
-                En Android con app nativa (Capacitor), el volumen sigue el de <strong>notificaciones</strong> del celular.
-                En el navegador usa el volumen de <strong>medios</strong>.
-              </p>
-              <div className="space-y-1.5">
-                {NOTIF_SOUNDS.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    disabled={!soundOn || !notifications.enabled}
-                    onClick={() => {
-                      setSoundId(s.id);
-                      setPreferredSound(s.id);
-                      previewSound(s.id);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm border transition-colors ${
-                      soundId === s.id
-                        ? "border-[var(--bv-primary)] bg-green-50 text-[var(--bv-primary-dark)] font-semibold"
-                        : "border-gray-100 bg-gray-50 text-gray-700 hover:bg-gray-100"
-                    } disabled:opacity-50`}
-                  >
-                    <span>{s.label}</span>
-                    {soundId === s.id && <Check size={16} className="text-[var(--bv-primary)]" />}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         )}
       </div>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { SessionUser } from "@/store"
 import { formatMoney } from "@/store";
 import { trpc } from "@/providers/trpc";
-import { Receipt, Filter } from "lucide-react";
+import { Filter } from "lucide-react";
 import { t } from "@/i18n";
 
 interface BalanceScreenProps {
